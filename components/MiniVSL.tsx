@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { QuizAnswers } from '../types';
 import WhatsAppCTA from './WhatsAppCTA';
+import Roulette from './Roulette';
 
 interface MiniVSLProps {
   answers: QuizAnswers | null;
@@ -8,23 +9,25 @@ interface MiniVSLProps {
 
 const MiniVSL: React.FC<MiniVSLProps> = ({ answers }) => {
   const [progress, setProgress] = useState(0);
+  const [showRoulette, setShowRoulette] = useState(false);
   const [showCTA, setShowCTA] = useState(false);
   const [bitrate, setBitrate] = useState(15420);
   
+  // 1 minuto e 50 segundos = 110 segundos
+  const DURATION_SECONDS = 110;
+
   const LIBRARY_ID = "576472";
   const VIDEO_ID = "d5dd91fa-774e-46c8-840e-b4bb04fbf526";
   const bunnyEmbedUrl = `https://iframe.mediadelivery.net/embed/${LIBRARY_ID}/${VIDEO_ID}?autoplay=true&muted=false&controls=true&loop=false&preload=true&responsive=true`;
 
   useEffect(() => {
-    const duration = 125; 
     const interval = setInterval(() => {
       setProgress(prev => {
         const next = prev + 1;
-        // Liberação do CTA após 15 segundos para teste/fluxo rápido conforme solicitado anteriormente
-        if (next >= 15) setShowCTA(true); 
-        if (next >= duration) {
+        if (next >= DURATION_SECONDS) {
           clearInterval(interval);
-          return duration;
+          setShowRoulette(true);
+          return DURATION_SECONDS;
         }
         return next;
       });
@@ -32,6 +35,11 @@ const MiniVSL: React.FC<MiniVSLProps> = ({ answers }) => {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleRouletteFinish = () => {
+    setShowRoulette(false);
+    setShowCTA(true);
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 md:py-12">
@@ -57,13 +65,10 @@ const MiniVSL: React.FC<MiniVSLProps> = ({ answers }) => {
         </div>
       </div>
 
-      {/* Layout Principal: 3 Colunas para Vídeo/CTA e 1 para Sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         
-        {/* Coluna do Vídeo e Botão (Prioridade de Visão) */}
         <div className="lg:col-span-3 space-y-6">
           <div className="relative rounded-[2rem] md:rounded-[2.5rem] bg-black border border-white/10 overflow-hidden shadow-[0_0_80px_rgba(0,229,255,0.15)]">
-            {/* Overlay Tech */}
             <div className="absolute top-4 right-6 z-20 hidden md:flex space-x-4 pointer-events-none">
                <div className="text-[9px] font-mono text-cyan-500 bg-black/60 px-3 py-1 rounded border border-cyan-500/20 backdrop-blur-md">
                   ENCRYPTED STREAM: SSL/TLS
@@ -80,7 +85,6 @@ const MiniVSL: React.FC<MiniVSLProps> = ({ answers }) => {
               ></iframe>
             </div>
 
-            {/* Status do Stream embaixo do Vídeo */}
             <div className="bg-[#050508] border-t border-white/5 p-4 flex items-center justify-between px-6 md:px-8">
                <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-2">
@@ -99,16 +103,17 @@ const MiniVSL: React.FC<MiniVSLProps> = ({ answers }) => {
             </div>
           </div>
 
-          {/* ÁREA DE CTA - REPOSICIONADA PARA SER LOGO ABAIXO DO VÍDEO */}
           <div className="w-full">
-            {showCTA ? (
+            {showRoulette ? (
+              <Roulette onFinish={handleRouletteFinish} />
+            ) : showCTA ? (
               <div className="animate-[fadeInUp_0.8s_ease-out] bg-cyan-500/5 rounded-[2.5rem] p-6 md:p-10 border border-cyan-500/20 shadow-2xl">
                 <div className="text-center mb-8">
-                   <div className="inline-block px-4 py-1.5 bg-cyan-500/10 border border-cyan-500/30 rounded-full mb-4">
-                      <p className="text-[10px] text-cyan-400 font-black uppercase tracking-[0.3em]">Sincronização 100%</p>
+                   <div className="inline-block px-4 py-1.5 bg-green-500/10 border border-green-500/30 rounded-full mb-4">
+                      <p className="text-[10px] text-green-400 font-black uppercase tracking-[0.3em]">Benefício de Ativação Reservado</p>
                    </div>
-                   <h3 className="text-3xl md:text-4xl font-black italic tracking-tighter uppercase mb-2 text-white">Sua Vaga foi Reservada!</h3>
-                   <p className="text-gray-400 text-sm font-medium">Toque no botão abaixo para ativar seu acesso no WhatsApp.</p>
+                   <h3 className="text-3xl md:text-4xl font-black italic tracking-tighter uppercase mb-2 text-white">Finalize sua Ativação</h3>
+                   <p className="text-gray-400 text-sm font-medium">Toque abaixo para ativar seu plano com <span className="text-white font-bold uppercase underline decoration-green-500 underline-offset-4">Taxa de Instalação Grátis</span>.</p>
                 </div>
                 <div className="max-w-2xl mx-auto">
                   <WhatsAppCTA />
@@ -116,7 +121,6 @@ const MiniVSL: React.FC<MiniVSLProps> = ({ answers }) => {
               </div>
             ) : (
               <div className="py-12 flex flex-col items-center bg-white/[0.02] border border-white/5 rounded-[2.5rem] relative overflow-hidden">
-                {/* O Relógio/Cronômetro Prominente */}
                 <div className="relative w-32 h-32 md:w-40 md:h-40 mb-8 scale-110">
                   <svg className="w-full h-full -rotate-90 transform">
                     <circle
@@ -128,35 +132,29 @@ const MiniVSL: React.FC<MiniVSLProps> = ({ answers }) => {
                       className="fill-none stroke-cyan-500 stroke-[8px] transition-all duration-1000 ease-linear shadow-[0_0_20px_rgba(0,229,255,0.5)]"
                       style={{ 
                         strokeDasharray: '283', 
-                        strokeDashoffset: `${283 - (283 * Math.min(100, (progress/15)*100)) / 100}` 
+                        strokeDashoffset: `${283 - (283 * Math.min(100, (progress/DURATION_SECONDS)*100)) / 100}` 
                       }}
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                     <span className="text-2xl md:text-3xl font-black text-white italic">{Math.min(100, Math.floor((progress/15)*100))}%</span>
-                     <span className="text-[8px] font-black text-cyan-500 uppercase tracking-widest mt-1">Status</span>
+                     <span className="text-2xl md:text-3xl font-black text-white italic">{Math.min(100, Math.floor((progress/DURATION_SECONDS)*100))}%</span>
+                     <span className="text-[8px] font-black text-cyan-500 uppercase tracking-widest mt-1">Sincronia</span>
                   </div>
-                  {/* Glow effect */}
                   <div className="absolute inset-0 bg-cyan-500/10 blur-3xl rounded-full -z-10 animate-pulse"></div>
                 </div>
 
                 <div className="text-center px-6">
                   <p className="text-xs uppercase tracking-[0.4em] font-black text-cyan-400 animate-pulse mb-3">Liberando Chave de Acesso...</p>
                   <p className="text-[10px] md:text-xs text-gray-500 max-w-sm mx-auto leading-relaxed font-bold">
-                    Estamos verificando os slots disponíveis para o plano <span className="text-white">VIP PLATINUM</span>. O botão aparecerá automaticamente em instantes.
+                    Aguarde o processamento para resgatar sua oferta exclusiva de ativação premiada.
                   </p>
                 </div>
-
-                {/* Shimmer line passing through background */}
-                <div className="absolute top-0 left-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/[0.03] to-transparent -skew-x-12 animate-[shimmer_3s_infinite]"></div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Sidebar Lateral (Informações Adicionais) */}
         <div className="space-y-6">
-           {/* Price Emphasis Box */}
            <div className="p-8 glass rounded-[2rem] border-cyan-500/20 bg-gradient-to-br from-cyan-500/10 to-purple-600/5 shadow-xl relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-2">
                  <div className="bg-cyan-500 text-black text-[8px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-tighter">OFERTA ATIVA</div>
@@ -176,7 +174,6 @@ const MiniVSL: React.FC<MiniVSLProps> = ({ answers }) => {
               </div>
            </div>
 
-           {/* Prova Social em tempo real */}
            <div className="p-6 glass rounded-2xl border-white/5">
               <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center">
                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-2 animate-pulse"></span>
@@ -197,7 +194,6 @@ const MiniVSL: React.FC<MiniVSLProps> = ({ answers }) => {
       <style>{`
         @keyframes fadeInLeft { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes shimmer { 0% { transform: translateX(-200%); } 100% { transform: translateX(200%); } }
       `}</style>
     </div>
   );
