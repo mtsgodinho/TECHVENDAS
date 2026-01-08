@@ -81,8 +81,10 @@
 {
   "imports": {
     "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
+    "react-dom": "https://esm.sh/react-dom@^19.2.3",
+    "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
   }
 }
 </script>
@@ -93,5 +95,7 @@
       <div class="glow-orb w-[600px] h-[600px] bg-[#7B2CFF] -bottom-40 -right-20" style="animation-delay: -5s;"></div>
     </div>
     <div id="root"></div>
+    <!-- Script de entrada essencial para o funcionamento da aplicação -->
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>
