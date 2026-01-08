@@ -7,9 +7,14 @@ export enum FunnelStep {
 }
 
 export interface QuizAnswers {
+  problem: string;
   device: string;
-  preference: string;
-  urgency: string;
+  subDevice?: string;
+  contentType: string;
+  frequency: string;
+  expectation: string;
+  frustration: string;
+  intent: string;
 }
 
 export interface VSLState {
