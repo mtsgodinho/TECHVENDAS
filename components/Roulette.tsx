@@ -9,7 +9,7 @@ const Roulette: React.FC<RouletteProps> = ({ onFinish }) => {
   const [rotation, setRotation] = useState(0);
   const [showResult, setShowResult] = useState(false);
 
-  // Lista de 8 prêmios conforme solicitado
+  // Lista de 8 prêmios com cores alternadas para uniformidade visual
   const prizes = [
     { label: "1 MÊS GRÁTIS", color: "#7B2CFF" },      // 0
     { label: "100 REAIS", color: "#0A1AFF" },         // 1
@@ -18,7 +18,7 @@ const Roulette: React.FC<RouletteProps> = ({ onFinish }) => {
     { label: "PLANO TRIMESTRAL", color: "#7B2CFF" },  // 4
     { label: "20 REAIS", color: "#0A1AFF" },          // 5
     { label: "10 REAIS", color: "#7B2CFF" },          // 6
-    { label: "INSTALAÇÃO GRÁTIS", color: "#00FF88" }  // 7 - ALVO
+    { label: "INSTALAÇÃO GRÁTIS", color: "#0A1AFF" }  // 7 - ALVO (Agora com a mesma cor do padrão)
   ];
 
   const handleSpin = () => {
@@ -26,16 +26,10 @@ const Roulette: React.FC<RouletteProps> = ({ onFinish }) => {
     
     setSpinning(true);
     
-    // 360 / 8 = 45 graus por fatia. 
     const sectorAngle = 360 / prizes.length;
     const targetSectorIndex = 7; // INSTALAÇÃO GRÁTIS
     
-    // A fatia i é renderizada com rotate(i * 45deg) e centralizada no eixo vertical superior.
-    // Portanto, o centro da fatia i está na posição (i * 45) graus.
-    // Para que o centro da fatia 7 (315°) fique no topo (0° ou 360°),
-    // a roda deve girar R tal que: 315 + R = 360 * k
-    // R = 360 * k - 315 = 45 graus (mais as voltas completas).
-    
+    // Cálculo para centralizar o ponteiro na fatia 7
     const extraSpins = 10 + Math.floor(Math.random() * 5);
     const finalRotation = (extraSpins * 360) + (360 - (targetSectorIndex * sectorAngle));
     
@@ -62,7 +56,7 @@ const Roulette: React.FC<RouletteProps> = ({ onFinish }) => {
       </div>
 
       <div className="relative w-80 h-80 md:w-[450px] md:h-[450px]">
-        {/* Indicator - Posicionado exatamente no centro superior */}
+        {/* Indicator */}
         <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-30 filter drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]">
           <svg width="50" height="50" viewBox="0 0 50 50" fill="none">
             <path d="M25 50L45 15H5L25 50Z" fill="white" />
@@ -88,8 +82,8 @@ const Roulette: React.FC<RouletteProps> = ({ onFinish }) => {
                 className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-1/2 origin-bottom flex items-center justify-center pt-8"
                 style={{ 
                   backgroundColor: prize.color,
-                  clipPath: 'polygon(50% 100%, 11% 0, 89% 0)', // Ajuste leve para fechar melhor as fatias
-                  opacity: i === 7 ? 1 : 0.6,
+                  clipPath: 'polygon(50% 100%, 11% 0, 89% 0)',
+                  opacity: 0.8, // Opacidade uniforme para todas as fatias
                   borderLeft: '1px solid rgba(255,255,255,0.1)'
                 }}
               >
