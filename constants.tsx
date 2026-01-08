@@ -43,5 +43,5 @@ export const AstronautMascot = ({ className = "w-48 h-48" }: { className?: strin
   </div>
 );
 
-export const WHATSAPP_NUMBER = "5511999999999"; 
+export const WHATSAPP_NUMBER = "5531971545030"; 
 export const WHATSAPP_MESSAGE = "Oi! Vi a apresentação da TechView e quero garantir minha vaga no sistema premium. Como faço para ativar?";
