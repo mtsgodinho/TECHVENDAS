@@ -1,9 +1,29 @@
 import React from 'react';
-import { WHATSAPP_NUMBER, WHATSAPP_MESSAGE } from '../constants';
+import { WHATSAPP_NUMBER } from '../constants';
+import { QuizAnswers } from '../types';
 
-const WhatsAppCTA: React.FC = () => {
+interface WhatsAppCTAProps {
+  answers: QuizAnswers | null;
+}
+
+const WhatsAppCTA: React.FC<WhatsAppCTAProps> = ({ answers }) => {
   const handleClick = () => {
-    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
+    const diagnosticInfo = answers ? `
+----------------------------
+🔍 MEU DIAGNÓSTICO:
+• Problema: ${answers.problem}
+• Dispositivo: ${answers.device} (${answers.subDevice || 'Não especificado'})
+• Conteúdo: ${answers.contentType}
+• Frequência: ${answers.frequency}
+• Intenção: ${answers.intent}
+🎁 PRÊMIO: Taxa de Instalação Grátis
+----------------------------` : '';
+
+    const baseMessage = "Oi! Vi a apresentação da TechView e quero garantir minha vaga no sistema premium com meu bônus de INSTALAÇÃO GRÁTIS.";
+    const fullMessage = `${baseMessage}${diagnosticInfo}\n\nComo faço para ativar?`;
+    
+    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(fullMessage)}`;
+    
     console.log('[TRACKING]: InitiateCheckout');
     window.open(url, '_blank');
   };
@@ -17,7 +37,7 @@ const WhatsAppCTA: React.FC = () => {
         onClick={handleClick}
         className="relative w-full bg-white text-black py-6 px-10 rounded-2xl flex items-center justify-between overflow-hidden shadow-2xl transform active:scale-95 transition-all"
       >
-        <div className="flex flex-col items-start">
+        <div className="flex flex-col items-start text-left">
           <span className="text-xs font-black uppercase tracking-[0.3em] opacity-40 mb-1">Passo Final</span>
           <span className="text-xl md:text-2xl font-black uppercase tracking-tighter italic">Liberar Acesso Agora</span>
         </div>

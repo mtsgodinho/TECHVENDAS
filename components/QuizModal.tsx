@@ -173,9 +173,9 @@ const QuizModal: React.FC<QuizModalProps> = ({ onClose, onComplete }) => {
             {current.type === "intro" ? (
               <button 
                 onClick={() => setStep(1)}
-                className="w-full shimmer bg-gradient-to-br from-cyan-500 to-purple-600 py-5 rounded-2xl font-black text-lg uppercase tracking-widest shadow-[0_15px_30px_rgba(123,44,255,0.3)] hover:scale-[1.02] active:scale-95 transition-all"
+                className="w-full shimmer bg-gradient-to-br from-cyan-500 to-purple-600 py-5 px-4 rounded-2xl font-black text-lg uppercase tracking-widest shadow-[0_15px_30px_rgba(123,44,255,0.3)] hover:scale-[1.02] active:scale-95 transition-all leading-tight"
               >
-                Iniciar Scan
+                Iniciar avaliação de alta precisão
               </button>
             ) : (
               current.options?.map((option, idx) => (

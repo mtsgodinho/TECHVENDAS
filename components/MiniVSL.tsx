@@ -116,7 +116,7 @@ const MiniVSL: React.FC<MiniVSLProps> = ({ answers }) => {
                    <p className="text-gray-400 text-sm font-medium">Toque abaixo para ativar seu plano com <span className="text-white font-bold uppercase underline decoration-green-500 underline-offset-4">Taxa de Instalação Grátis</span>.</p>
                 </div>
                 <div className="max-w-2xl mx-auto">
-                  <WhatsAppCTA />
+                  <WhatsAppCTA answers={answers} />
                 </div>
               </div>
             ) : (
