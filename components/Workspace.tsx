@@ -16,6 +16,7 @@ import {
 import ImportCsv from "./ImportCsv";
 import LeadEditor from "./LeadEditor";
 import Brand from "./Brand";
+import SellerBatches from "./SellerBatches";
 type View =
   | "dashboard"
   | "stock"
@@ -96,6 +97,7 @@ export default function Workspace({
     [query, setQuery] = useState(""),
     [status, setStatus] = useState(""),
     [batch, setBatch] = useState(""),
+    [sellerFilter, setSellerFilter] = useState(""),
     [since, setSince] = useState(""),
     [until, setUntil] = useState(""),
     [leadOrder, setLeadOrder] = useState("newest"),
@@ -147,6 +149,8 @@ export default function Workspace({
         .not("status", "in", "(sold,lost,no_response)");
     if (view === "followup") q = q.in("status", ["interested", "follow_up"]);
     if (view === "finished") q = q.in("status", ["sold", "lost"]);
+    if (admin && view === "leads" && sellerFilter)
+      q = q.eq("assigned_to", sellerFilter);
     if (status) q = q.eq("status", status);
     if (batch) q = q.eq("batch_id", batch);
     const dates = range();
@@ -168,7 +172,7 @@ export default function Workspace({
     const ascending = leadDates && leadOrder === "oldest";
     if (leadDates) q = q.order("source_date", { ascending, nullsFirst: false });
     return q.order("created_at", { ascending }).order("id", { ascending });
-  }, [view, status, batch, range, query, leadOrder]);
+  }, [view, status, batch, range, query, leadOrder, admin, sellerFilter]);
   useEffect(() => {
     const client = supabase;
     if (!client) return;
@@ -252,6 +256,7 @@ export default function Workspace({
     setPage(0);
     setStatus("");
     setBatch("");
+    setSellerFilter("");
     setSince("");
     setUntil("");
     setSearch("");
@@ -531,11 +536,41 @@ export default function Workspace({
                       {loading ? "—" : Number(value).toLocaleString("pt-BR")}
                     </strong>
                     <span className="metric-hint">
-                      {admin ? "Situação atual" : "Seus leads"}
+                      {admin ? "Situação geral do CRM" : "Seus leads"}
                     </span>
                   </article>
                 ))}
               </div>
+              {admin && view === "leads" && (
+                <SellerBatches
+                  people={people}
+                  seller={sellerFilter}
+                  refresh={refresh}
+                  onSellerChange={(id) => {
+                    setSellerFilter(id);
+                    setBatch("");
+                    setPage(0);
+                    setStatus("");
+                    setSearch("");
+                    setQuery("");
+                    setSince("");
+                    setUntil("");
+                  }}
+                  onBatchSelect={(id) => {
+                    setBatch(id);
+                    setStatus("");
+                    setSearch("");
+                    setQuery("");
+                    setSince("");
+                    setUntil("");
+                    setPage(0);
+                  }}
+                  onChanged={(message) => {
+                    setNotice(message);
+                    reload();
+                  }}
+                />
+              )}
               <div className="filters filter-panel">
                 {view !== "dashboard" && (
                   <label className="search-field">
@@ -575,11 +610,15 @@ export default function Workspace({
                     }}
                   >
                     <option value="">Todos os lotes</option>
-                    {batches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.id.slice(0, 8)} · {formatDate(b.created_at)}
-                      </option>
-                    ))}
+                    {batches
+                      .filter(
+                        (b) => !sellerFilter || b.attendant_id === sellerFilter,
+                      )
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.id.slice(0, 8)} · {formatDate(b.created_at)}
+                        </option>
+                      ))}
                   </select>
                 </label>
                 {!canSelect && (

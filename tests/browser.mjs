@@ -17,6 +17,11 @@ const now = "2026-11-05T15:00:00.000Z";
 const profiles = [
   { id: adminId, full_name: "Admin de teste", role: "admin" },
   { id: attendantId, full_name: "Atendente de teste", role: "attendant" },
+  {
+    id: "00000000-0000-0000-0000-000000000003",
+    full_name: "Outro vendedor",
+    role: "attendant",
+  },
 ];
 const requests = [];
 async function setup(role) {
@@ -51,8 +56,23 @@ async function setup(role) {
     make("2", "Contato ativo", attendantId),
     make("3", "Oportunidade interessada", attendantId, "interested"),
     make("4", "Lead sem data", null),
+    make("80", "Venda concluída", attendantId, "sold"),
+    {
+      ...make(
+        "99",
+        "Fila outro vendedor",
+        "00000000-0000-0000-0000-000000000003",
+      ),
+      batch_id: "00000000-0000-0000-0000-000000000011",
+    },
   ];
   const history = [];
+  const recalledIds = new Set();
+  const originalAssignments = new Map(
+    leads
+      .filter((l) => l.assigned_to)
+      .map((l) => [l.id, { seller: l.assigned_to, batch: l.batch_id }]),
+  );
   await page.route("https://*.supabase.co/**", async (route) => {
     const url = new URL(route.request().url()),
       path = url.pathname,
@@ -136,9 +156,13 @@ async function setup(role) {
         if (key === "assigned_to") {
           if (value === "is.null")
             data = data.filter((l) => l.assigned_to === null);
+          if (value.startsWith("eq."))
+            data = data.filter((l) => l.assigned_to === value.slice(3));
           if (value === "not.is.null")
             data = data.filter((l) => l.assigned_to !== null);
         }
+        if (key === "batch_id" && value.startsWith("eq."))
+          data = data.filter((l) => l.batch_id === value.slice(3));
         if (key === "returned_at" && value === "is.null")
           data = data.filter((l) => l.returned_at === null);
         if (key === "status") {
@@ -200,6 +224,76 @@ async function setup(role) {
             leads: { name: leads.find((l) => l.id === h.lead_id)?.name },
           })),
       );
+    if (path === "/rest/v1/rpc/seller_batches") {
+      const batchIds = [
+        ...new Set(
+          [...originalAssignments.values()]
+            .filter((a) => a.seller === body.p_seller)
+            .map((a) => a.batch),
+        ),
+      ];
+      return response(
+        batchIds
+          .map((batch) => {
+            const rows = leads.filter(
+              (l) =>
+                originalAssignments.get(l.id)?.seller === body.p_seller &&
+                originalAssignments.get(l.id)?.batch === batch,
+            );
+            const current = rows.filter(
+              (l) => l.batch_id === batch && !recalledIds.has(l.id),
+            );
+            return {
+              batch_id: batch,
+              created_at: now,
+              total: rows.length,
+              active: current.filter(
+                (l) =>
+                  l.assigned_to === body.p_seller &&
+                  !["sold", "lost", "no_response"].includes(l.status),
+              ).length,
+              recalled: rows.filter((l) => recalledIds.has(l.id)).length,
+              transferred: 0,
+              statuses: Object.fromEntries(
+                [
+                  "pending",
+                  "contacted",
+                  "interested",
+                  "follow_up",
+                  "no_response",
+                  "sold",
+                  "lost",
+                ].map((status) => [
+                  status,
+                  current.filter((l) => l.status === status).length,
+                ]),
+              ),
+            };
+          })
+          .slice(
+            body.p_offset || 0,
+            (body.p_offset || 0) + (body.p_limit || 20),
+          ),
+      );
+    }
+    if (path === "/rest/v1/rpc/recall_batch") {
+      requests.push({ name: "recall", body });
+      const rows = leads.filter(
+        (l) =>
+          l.assigned_to === body.p_seller &&
+          l.batch_id === body.p_batch &&
+          !["sold", "lost", "no_response"].includes(l.status),
+      );
+      for (const l of rows) {
+        recalledIds.add(l.id);
+        Object.assign(l, {
+          assigned_to: null,
+          batch_id: null,
+          status: "pending",
+        });
+      }
+      return response({ recalled: rows.length });
+    }
     if (path === "/rest/v1/rpc/dashboard") {
       const v = visible();
       return response({
@@ -252,6 +346,10 @@ async function setup(role) {
       for (const l of stock) {
         l.assigned_to = body.p_attendant;
         l.batch_id = "00000000-0000-0000-0000-000000000010";
+        originalAssignments.set(l.id, {
+          seller: l.assigned_to,
+          batch: l.batch_id,
+        });
       }
       return response({
         released: stock.length,
@@ -297,10 +395,10 @@ async function setup(role) {
   await page.getByRole("button", { name: "Entrar na plataforma" }).click();
   await page.getByRole("button", { name: "Atualizar dados" }).waitFor();
   await expect(page.locator(".notice[role=alert]")).toHaveCount(0);
-  return { context, page, errors };
+  return { context, page, errors, leads };
 }
 try {
-  const { context, page, errors } = await setup("admin");
+  const { context, page, errors, leads } = await setup("admin");
   await expect(
     page.getByRole("heading", { name: "Visão geral." }),
   ).toBeVisible();
@@ -397,6 +495,42 @@ try {
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Exportar CSV" }).click();
   assert.match((await download).suggestedFilename(), /^techvendas-.*\.csv$/);
+  await page
+    .getByLabel("Vendedor", { exact: true })
+    .selectOption("00000000-0000-0000-0000-000000000003");
+  await expect(page.locator(".seller-batch")).toHaveCount(1);
+  await expect(page.locator(".lead-card h3")).toHaveText("Fila outro vendedor");
+  await page.getByLabel("Vendedor", { exact: true }).selectOption(attendantId);
+  await expect(page.locator(".seller-batch")).toHaveCount(1);
+  await expect(page.locator(".seller-batch")).toContainText(
+    "Venda realizada: 1",
+  );
+  await expect(page.locator(".seller-batch")).toContainText("3 na fila");
+  await expect(
+    page.getByRole("heading", { name: "Fila outro vendedor", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Ver fila deste lote" }).click();
+  await expect(page.locator(".lead-card")).toHaveCount(3);
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.getByRole("button", { name: "Retirar lote da fila" }).click();
+  assert.equal(requests.filter((r) => r.name === "recall").length, 0);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Retirar lote da fila" }).click();
+  await expect(page.locator(".notice[role=status]")).toContainText(
+    "3 contatos retirados",
+  );
+  await expect(page.locator(".seller-batch")).toContainText("0 na fila");
+  await expect(page.locator(".seller-batch")).toContainText("Retirados: 3");
+  await expect(page.locator(".lead-card")).toHaveCount(0);
+  assert.equal(leads.find((l) => l.id === "80").status, "sold");
+  assert.equal(leads.find((l) => l.id === "80").assigned_to, attendantId);
+  assert.equal(
+    leads.find((l) => l.id === "99").assigned_to,
+    "00000000-0000-0000-0000-000000000003",
+  );
+  console.log(
+    "Fila: seleção de vendedor, lotes/status, confirmação e retirada sem apagar vendas passaram.",
+  );
   await page.getByRole("button", { name: "Visão geral", exact: true }).click();
   for (const width of [1440, 820, 390]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -417,6 +551,7 @@ try {
   await context.close();
   const attendant = await setup("attendant");
   const p = attendant.page;
+  await expect(p.getByLabel("Vendedor", { exact: true })).toHaveCount(0);
   await expect(
     p.getByRole("button", { name: "Importar CSV", exact: true }),
   ).toHaveCount(0);

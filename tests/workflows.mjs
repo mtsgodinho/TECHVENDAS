@@ -401,6 +401,152 @@ test("sem resposta como primeira ação conta como trabalho; perdido finaliza", 
   const m = (await rpc("select public.dashboard() result")).result;
   assert.equal(m.statuses.lost, 1);
 });
+test("painel de vendedores resume lotes e recolhe somente contatos ativos", async () => {
+  await user(admin);
+  await db.query("select public.import_leads($1::jsonb)", [
+    JSON.stringify(
+      Array.from({ length: 6 }, (_, i) => ({
+        name: `Recolher ${i}`,
+        phone: `55119876543${String(i).padStart(2, "0")}`,
+      })),
+    ),
+  ]);
+  const targets = (
+    await db.query(
+      "select * from public.leads where name like 'Recolher %' order by name",
+    )
+  ).rows;
+  const ids = targets.map((l) => l.id);
+  const batch = (
+    await rpc("select public.release_leads($1,6,$2::uuid[]) result", [
+      attendant,
+      ids,
+    ])
+  ).result.batch_id;
+  await user(attendant);
+  await db.query(
+    "select public.save_lead($1,'interested','Interesse preservado')",
+    [ids[1]],
+  );
+  await db.query(
+    "select public.save_lead($1,'follow_up','Data preservada','2026-12-12T11:00:00-03:00')",
+    [ids[2]],
+  );
+  await db.query("select public.save_lead($1,'sold','Venda preservada')", [
+    ids[3],
+  ]);
+  await db.query("select public.save_lead($1,'lost','Perdido preservado')", [
+    ids[4],
+  ]);
+  await assert.rejects(
+    db.query("select * from public.seller_batches($1)", [attendant]),
+  );
+  await assert.rejects(
+    db.query("select public.recall_batch($1,$2)", [batch, attendant]),
+  );
+  await user(admin);
+  const moved = (
+    await db.query("select * from public.leads where id=$1", [ids[5]])
+  ).rows[0];
+  await db.query("select public.transfer_lead($1,$2,$3)", [
+    moved.id,
+    other,
+    moved.updated_at,
+  ]);
+  let summary = (
+    await db.query("select * from public.seller_batches($1)", [attendant])
+  ).rows.find((b) => b.batch_id === batch);
+  assert.equal(Number(summary.total), 6);
+  assert.equal(Number(summary.active), 3);
+  assert.equal(Number(summary.transferred), 1);
+  assert.equal(summary.statuses.sold, 1);
+  assert.equal(summary.statuses.lost, 1);
+  const countBefore = (
+    await db.query("select count(*)::int n from public.leads")
+  ).rows[0].n;
+  const workedBefore = (await rpc("select public.dashboard() result")).result
+    .worked;
+  assert.equal(
+    (await rpc("select public.recall_batch($1,$2) result", [batch, other]))
+      .result.recalled,
+    0,
+  );
+  const result = (
+    await rpc("select public.recall_batch($1,$2) result", [batch, attendant])
+  ).result;
+  assert.equal(result.recalled, 3);
+  const after = (
+    await db.query(
+      "select * from public.leads where id=any($1::uuid[]) order by name",
+      [ids],
+    )
+  ).rows;
+  for (const l of after.slice(0, 3)) {
+    assert.equal(l.assigned_to, null);
+    assert.equal(l.batch_id, null);
+    assert.equal(l.status, "pending");
+    assert.equal(l.returned_at, null);
+  }
+  assert.equal(after[1].notes, "Interesse preservado");
+  assert.equal(after[2].notes, "Data preservada");
+  assert.equal(
+    new Date(after[2].follow_up_at).toISOString(),
+    "2026-12-12T14:00:00.000Z",
+  );
+  assert.equal(after[3].status, "sold");
+  assert.equal(after[3].assigned_to, attendant);
+  assert.equal(after[4].status, "lost");
+  assert.equal(after[5].assigned_to, other);
+  assert.equal(
+    (await db.query("select count(*)::int n from public.leads")).rows[0].n,
+    countBefore,
+  );
+  assert.equal(
+    (await rpc("select public.dashboard() result")).result.worked,
+    workedBefore,
+  );
+  const audit = (
+    await db.query(
+      "select * from public.lead_history where lead_id=any($1::uuid[]) and event_type='recall'",
+      [ids],
+    )
+  ).rows;
+  assert.equal(audit.length, 3);
+  assert.ok(audit.every((h) => h.actor_id === admin && h.batch_id === batch));
+  summary = (
+    await db.query("select * from public.seller_batches($1)", [attendant])
+  ).rows.find((b) => b.batch_id === batch);
+  assert.equal(Number(summary.active), 0);
+  assert.equal(Number(summary.recalled), 3);
+  assert.equal(summary.statuses.sold, 1);
+  assert.equal(
+    (await rpc("select public.recall_batch($1,$2) result", [batch, attendant]))
+      .result.recalled,
+    0,
+  );
+  const a = (
+    await db.query(
+      "select * from public.assignments where batch_id=$1 and end_reason='recalled'",
+      [batch],
+    )
+  ).rows;
+  assert.equal(a.length, 3);
+  assert.ok(a.every((x) => x.ended_at));
+  await user(attendant);
+  for (const id of ids.slice(0, 3))
+    assert.equal(
+      (await db.query("select * from public.leads where id=$1", [id])).rows
+        .length,
+      0,
+    );
+  await assert.rejects(
+    db.query("select public.save_lead($1,'sold','Após retirada')", [ids[0]]),
+  );
+  await user(admin);
+  await assert.rejects(
+    db.query("select * from public.seller_batches($1,-1)", [attendant]),
+  );
+});
 test("anônimos não têm acesso a tabelas nem funções de escrita", async () => {
   await db.exec("reset role;set role anon;");
   for (const table of [
@@ -416,4 +562,10 @@ test("anônimos não têm acesso a tabelas nem funções de escrita", async () =
     db.query("select public.release_leads($1)", [attendant]),
   );
   await assert.rejects(db.query("select public.dashboard()"));
+  await assert.rejects(
+    db.query("select * from public.seller_batches($1)", [attendant]),
+  );
+  await assert.rejects(
+    db.query("select public.recall_batch($1,$2)", [firstBatch, attendant]),
+  );
 });

@@ -291,9 +291,11 @@ export default function LeadEditor({
           <li key={item.id}>
             <div>
               <strong>
-                {item.event_type === "assignment"
-                  ? "Atribuição de lead"
-                  : `${item.old_status ? statuses[item.old_status] + " → " : ""}${statuses[item.new_status]}`}
+                {item.event_type === "recall"
+                  ? "Retirado da fila — devolvido ao estoque"
+                  : item.event_type === "assignment"
+                    ? "Atribuição de lead"
+                    : `${item.old_status ? statuses[item.old_status] + " → " : ""}${statuses[item.new_status]}`}
               </strong>
               <time>{formatDate(item.created_at)}</time>
             </div>

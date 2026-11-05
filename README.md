@@ -10,6 +10,7 @@ CRM interno para leads exportados da Maria. Next.js, TypeScript, Tailwind CSS e 
 - Fila da atendente, cópia de telefone, observações, sete status e agendamento no horário de Brasília.
 - Devolução automática ao administrador quando marcado sem resposta. Interessados e retornos permanecem com a atendente; vendas e perdidos são finalizados.
 - Histórico com autor e horário, reatribuição administrativa, indicadores de contatos únicos por período e taxa de conversão.
+- Na Fila de atendimento, painel administrativo para selecionar vendedor, consultar lotes/status e retirar um lote da fila sem apagar leads ou histórico.
 - Busca, filtros por status/lote/período, paginação e exportação CSV administrativa. Interface confortável em computador, tablet e celular.
 - RLS em todas as tabelas. Escritas de leads passam por funções transacionais com verificação de perfil, atribuição e versão do registro.
 
@@ -37,7 +38,7 @@ Neste ambiente, a URL e a chave pública já foram fornecidas pelas configuraç�
 5. Desative cadastros públicos nas configurações de autenticação. Configure **Site URL** e **Redirect URLs** com o domínio da aplicação.
 6. Entre no aplicativo com cada usuário e faça o roteiro abaixo.
 
-Se `001_initial.sql` já foi aplicada em uma versão anterior, aplique somente `002_workflows.sql`, em vez do instalador completo. Os arquivos numerados são as migrações; `setup.sql` é a consolidação para projetos vazios. Alterações futuras devem ser novas migrações.
+Para uma instalação que já tem as cinco funções principais e os perfis, aplique somente **`supabase/003_seller_batches.sql`** no SQL Editor para ativar o painel de vendedores. Essa migração pode ser executada novamente sem recriar tabelas ou apagar dados. Se apenas `001_initial.sql` estiver aplicada, execute `002_workflows.sql` e depois `003_seller_batches.sql`, sem executar novamente o instalador completo. Os arquivos numerados são as migrações; `setup.sql` é a consolidação para projetos vazios. Alterações futuras devem ser novas migrações.
 
 O usuário confirmou a criação das tabelas e das cinco funções pelo SQL Editor. A chave pública permite usar o aplicativo, mas não executar DDL ou criar usuários. Por isso a instalação exige o SQL Editor ou acesso administrativo seguro; não pode ser feita com a chave publicável.
 
@@ -54,7 +55,7 @@ npm run build
 npm start
 ```
 
-`npm test` executa 7 testes de CSV, 11 verificações iniciais de RLS e 14 testes integrados de banco em PostgreSQL embarcado (PGlite). As migrações completas são executadas de verdade nesse banco em memória, com usuários/papéis de autenticação de teste. A suíte verifica duplicados, lotes, isolamento, acesso anônimo, conflitos de edição, agendamento, devolução, nova liberação, reatribuição e finalização.
+`npm test` executa 7 testes de CSV, 11 verificações iniciais de RLS e 15 testes integrados de banco em PostgreSQL embarcado (PGlite). As migrações completas são executadas de verdade nesse banco em memória, com usuários/papéis de autenticação de teste. A suíte verifica duplicados, lotes, isolamento, acesso anônimo, conflitos de edição, agendamento, devolução, nova liberação, reatribuição e finalização.
 
 Com um servidor iniciado em outro terminal:
 
@@ -90,3 +91,11 @@ A publicação do ambiente na nuvem e o deploy na Vercel são ações diferentes
 ## Usuários e senhas
 
 Você define e distribui as credenciais. Os nomes de usuário têm de 3 a 32 caracteres, começam com uma letra e aceitam letras sem acentos, números, ponto, hífen e sublinhado. Não diferenciam maiúsculas de minúsculas. O login converte o usuário para o identificador interno `usuario@techvendas.invalid`, mantendo sessões e RLS do Supabase. Esse endereço é técnico, não recebe mensagens e não precisa existir como caixa de e-mail. Não há recuperação de senha por e-mail: o administrador define ou redefine a senha no painel Authentication do Supabase. Nunca coloque senhas em SQL, Git ou nesta conversa.
+
+## Gerenciar lotes dos vendedores
+
+Entre como administrador e abra **Fila de atendimento**. No painel **Vendedores e lotes**, escolha um vendedor: a lista de contatos passa a mostrar somente sua fila. Cada lote mostra a data de liberação, quantidade originalmente recebida, contatos ativos, os sete status e contagens separadas de contatos retirados/transferidos. **Ver fila deste lote** aplica o filtro do lote na lista abaixo. Há paginação dos lotes para consultar os mais antigos.
+
+**Retirar lote da fila** exige confirmação. A função transacional `recall_batch` retira somente os contatos ainda atribuídos ao vendedor naquele lote e não finalizados. Esses contatos voltam ao estoque como Pendentes, aptos a uma nova liberação. Observações, data de retorno e histórico são preservados; a atribuição anterior é encerrada com motivo de retirada. Vendas, perdidos, devolvidos sem resposta e contatos já transferidos não são alterados. A operação registra o administrador e o lote no histórico, sem contar como atendimento no dashboard. Repetir a retirada de um lote vazio não duplica eventos. Somente administradores podem consultar esse painel ou executar a retirada; o banco verifica isso mesmo fora da interface.
+
+A migração necessária é `003_seller_batches.sql`; a interface mostra um erro de configuração se ela ainda não tiver sido aplicada no projeto real. Os testes locais verificam permissões, integridade e retirada, mas não substituem a aplicação e validação no Supabase remoto.
