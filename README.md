@@ -101,3 +101,7 @@ Entre como administrador e abra **Fila de atendimento**. No painel **Vendedores 
 A migração necessária é `003_seller_batches.sql`; a interface mostra um erro de configuração se ela ainda não tiver sido aplicada no projeto real. Os testes locais verificam permissões, integridade e retirada, mas não substituem a aplicação e validação no Supabase remoto.
 
 O filtro **Lote** da atendente lista somente lotes com atribuições ativas para ela. Lotes retirados ou sem atribuições ativas não aparecem nessa lista; o administrador mantém acesso ao histórico. Se o lote filtrado for retirado, a próxima atualização limpa esse filtro automaticamente.
+
+## Painéis digitais
+
+Os quatro indicadores principais usam velocímetros com escala de 0 a 100%, ponteiro e contador digital animados. O número central é a quantidade real de leads; a escala mostra a participação na base retornada pelo dashboard (não é uma meta de vendas). Sem leads, o marcador fica em zero. Os dados e as permissões seguem o mesmo fluxo do CRM. As animações são desativadas quando o dispositivo solicita movimento reduzido. Não exige migração SQL nem dependências adicionais.

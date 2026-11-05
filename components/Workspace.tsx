@@ -17,6 +17,7 @@ import ImportCsv from "./ImportCsv";
 import LeadEditor from "./LeadEditor";
 import Brand from "./Brand";
 import SellerBatches from "./SellerBatches";
+import DigitalGauge from "./DigitalGauge";
 type View =
   | "dashboard"
   | "stock"
@@ -549,17 +550,18 @@ export default function Workspace({
             />
           ) : (
             <>
-              <div className="metric-grid" aria-busy={loading}>
-                {cards.map(([label, value]) => (
-                  <article className="metric-card" key={label}>
-                    <span>{label}</span>
-                    <strong>
-                      {loading ? "—" : Number(value).toLocaleString("pt-BR")}
-                    </strong>
-                    <span className="metric-hint">
-                      {admin ? "Situação geral do CRM" : "Seus leads"}
-                    </span>
-                  </article>
+              <div className="metric-grid instrument-grid" aria-busy={loading}>
+                {cards.map(([label, value], index) => (
+                  <DigitalGauge
+                    key={label}
+                    label={String(label)}
+                    value={Number(value)}
+                    total={metrics.total}
+                    loading={loading}
+                    index={index}
+                    tone={(["cyan", "blue", "violet", "green"] as const)[index]}
+                    scope={admin ? "Base geral do CRM" : "Seus contatos"}
+                  />
                 ))}
               </div>
               {admin && view === "leads" && (

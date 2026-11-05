@@ -1273,3 +1273,298 @@ td {
     min-width: 0;
   }
 }
+/* Digital instrument panels: percentages always reference the real lead base. */
+.instrument-grid {
+  gap: 18px;
+  isolation: isolate;
+}
+.instrument-card {
+  --instrument: #00ddff;
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #29425e;
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 50% 35%, #102b43aa, transparent 72%),
+    linear-gradient(155deg, #102035, #091424 68%);
+  box-shadow:
+    inset 0 1px 0 #b6e7ff09,
+    0 12px 30px #0002;
+  transition:
+    border-color 0.25s,
+    transform 0.25s,
+    box-shadow 0.25s;
+}
+.instrument-card[data-tone="blue"] {
+  --instrument: #5e9bff;
+}
+.instrument-card[data-tone="violet"] {
+  --instrument: #b19aff;
+}
+.instrument-card[data-tone="green"] {
+  --instrument: #43e6b0;
+}
+.instrument-card:before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  background-image:
+    linear-gradient(#5d8db414 1px, transparent 1px),
+    linear-gradient(90deg, #5d8db414 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(transparent, #000, transparent);
+}
+.instrument-card:after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 24%;
+  right: 24%;
+  height: 1px;
+  background: var(--instrument);
+  box-shadow: 0 0 16px var(--instrument);
+  opacity: 0.55;
+}
+.instrument-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--instrument);
+  box-shadow:
+    inset 0 1px 0 #b6e7ff10,
+    0 15px 40px #0004;
+}
+.instrument-heading {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 18px 0;
+}
+.instrument-heading h3 {
+  margin: 0;
+  color: #c9d7e8;
+  font-size: 12px;
+  font-weight: 550;
+  letter-spacing: 0.1px;
+  line-height: 1.4;
+}
+.instrument-symbol {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  color: var(--instrument);
+  background: #0c1a2d;
+  border: 1px solid #46698540;
+}
+.instrument-channel {
+  margin-left: auto;
+  font:
+    10px ui-monospace,
+    monospace;
+  color: #536f88;
+}
+.instrument-face {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  margin: -3px auto 0;
+  aspect-ratio: 260/196;
+}
+.instrument-dial {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.dial-outer {
+  fill: none;
+  stroke: #20374c;
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+.dial-inner {
+  fill: none;
+  stroke: #38597440;
+  stroke-width: 0.6;
+  stroke-dasharray: 2 4;
+}
+.dial-progress {
+  fill: none;
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  transition: stroke-dashoffset 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: drop-shadow(
+    0 0 4px color-mix(in srgb, var(--instrument) 40%, transparent)
+  );
+}
+.dial-bound {
+  font:
+    8px ui-monospace,
+    monospace;
+  fill: #69859e;
+  letter-spacing: 0.4px;
+}
+.dial-needle {
+  transform-origin: 130px 132px;
+  transition: transform 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: drop-shadow(
+    0 0 3px color-mix(in srgb, var(--instrument) 35%, transparent)
+  );
+}
+.instrument-readout {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+.instrument-readout strong {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: clamp(29px, 2.9vw, 45px);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -1.9px;
+  color: #edf8ff;
+  text-shadow: 0 0 22px #bfe5ff18;
+  font-variant-numeric: tabular-nums;
+}
+.instrument-readout > span {
+  font:
+    8px ui-monospace,
+    monospace;
+  letter-spacing: 3px;
+  color: #67859f;
+}
+.instrument-footer {
+  position: relative;
+  margin: 18px 18px 0;
+  padding: 12px 0 15px;
+  border-top: 1px solid #3a597333;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 9px;
+  color: #8ca8bf;
+}
+.instrument-footer > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.instrument-footer i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--instrument);
+  box-shadow: 0 0 7px var(--instrument);
+  animation: instrument-light 3s ease-in-out infinite;
+}
+.instrument-footer b {
+  font:
+    10px ui-monospace,
+    monospace;
+  color: var(--instrument);
+  white-space: nowrap;
+}
+.performance strong {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.6px;
+}
+.funnel-track {
+  box-shadow: inset 0 0 5px #0004;
+}
+.funnel-track > span {
+  transition: width 0.65s ease;
+  box-shadow: 0 0 12px #00d9ff25;
+}
+.status-pill {
+  font-variant-numeric: tabular-nums;
+}
+@keyframes instrument-light {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (max-width: 1180px) {
+  .instrument-face {
+    max-width: 250px;
+  }
+  .instrument-readout strong {
+    font-size: 40px;
+  }
+}
+@media (max-width: 700px) {
+  .instrument-grid {
+    gap: 10px;
+  }
+  .instrument-heading {
+    padding: 12px 10px 0;
+    gap: 7px;
+  }
+  .instrument-heading h3 {
+    font-size: 10px;
+  }
+  .instrument-symbol {
+    width: 25px;
+    height: 25px;
+    border-radius: 7px;
+  }
+  .instrument-symbol svg {
+    width: 15px;
+    height: 15px;
+  }
+  .instrument-channel {
+    display: none;
+  }
+  .instrument-readout strong {
+    font-size: 30px;
+    letter-spacing: -1px;
+  }
+  .instrument-readout > span {
+    font-size: 7px;
+    letter-spacing: 2px;
+  }
+  .instrument-footer {
+    margin: 12px 10px 0;
+    padding: 10px 0 12px;
+    font-size: 8px;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .instrument-footer b {
+    font-size: 9px;
+  }
+  .instrument-card {
+    border-radius: 13px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .instrument-card,
+  .dial-progress,
+  .dial-needle,
+  .funnel-track > span {
+    transition: none !important;
+  }
+  .instrument-footer i {
+    animation: none !important;
+  }
+  .instrument-card:hover {
+    transform: none;
+  }
+}

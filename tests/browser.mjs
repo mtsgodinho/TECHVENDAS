@@ -433,6 +433,13 @@ async function setup(role) {
 }
 try {
   const { context, page, errors, leads } = await setup("admin");
+  await expect(page.locator(".instrument-card")).toHaveCount(4);
+  await expect(
+    page.locator(".instrument-card").first().locator(".sr-only"),
+  ).toContainText("Total importado: 6 leads");
+  await expect(
+    page.locator(".instrument-card").nth(1).locator(".instrument-footer"),
+  ).toContainText("33,3% da base");
   await expect(
     page.getByRole("heading", { name: "Visão geral." }),
   ).toBeVisible();
@@ -580,7 +587,36 @@ try {
     console.log(`Admin: layout ${width}px sem overflow.`);
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
+  const expectedReadouts = [
+    leads.length,
+    leads.filter((l) => !l.assigned_to).length,
+    leads.filter((l) => l.assigned_to && !["sold", "lost"].includes(l.status))
+      .length,
+    leads.filter((l) => l.status === "sold").length,
+  ];
+  for (let i = 0; i < 4; i++)
+    await expect(page.locator(".instrument-readout strong").nth(i)).toHaveText(
+      expectedReadouts[i].toLocaleString("pt-BR"),
+    );
   await page.screenshot({ path: "/tmp/techvendas-admin.png", fullPage: true });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  assert.equal(
+    await page
+      .locator(".dial-needle")
+      .first()
+      .evaluate((el) => getComputedStyle(el).transitionDuration),
+    "0s",
+  );
+  assert.equal(
+    await page
+      .locator(".instrument-footer i")
+      .first()
+      .evaluate((el) => getComputedStyle(el).animationName),
+    "none",
+  );
+  console.log(
+    "Painéis digitais: quatro velocímetros, quantidades/percentuais reais e movimento reduzido passaram.",
+  );
   assert.deepEqual(errors, []);
   await context.close();
   const attendant = await setup("attendant");
