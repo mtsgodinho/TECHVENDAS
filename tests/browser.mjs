@@ -44,9 +44,13 @@ async function setup(role) {
     updated_at: now,
   });
   const leads = [
-    make("1", "Contato no estoque", null),
+    {
+      ...make("1", "Contato no estoque", null),
+      source_date: "2026-01-10T12:00:00.000Z",
+    },
     make("2", "Contato ativo", attendantId),
     make("3", "Oportunidade interessada", attendantId, "interested"),
+    make("4", "Lead sem data", null),
   ];
   const history = [];
   await page.route("https://*.supabase.co/**", async (route) => {
@@ -60,6 +64,7 @@ async function setup(role) {
         headers: {
           "content-type": "application/json",
           "access-control-allow-origin": "*",
+          "access-control-expose-headers": "content-range",
           ...extra,
         },
         body: status === 204 ? undefined : JSON.stringify(data),
@@ -144,6 +149,34 @@ async function setup(role) {
           if (value.startsWith("not.in."))
             data = data.filter((l) => !value.includes(l.status));
         }
+      }
+      for (const [key, value] of url.searchParams) {
+        if (key === "source_date" && value.startsWith("gte."))
+          data = data.filter(
+            (l) =>
+              l.source_date &&
+              new Date(l.source_date) >= new Date(value.slice(4)),
+          );
+        if (key === "source_date" && value.startsWith("lt."))
+          data = data.filter(
+            (l) =>
+              l.source_date &&
+              new Date(l.source_date) < new Date(value.slice(3)),
+          );
+      }
+      const order = url.searchParams.get("order") || "";
+      if (order.startsWith("source_date.")) {
+        const ascending = order.startsWith("source_date.asc");
+        data = [...data].sort((a, b) =>
+          !a.source_date && !b.source_date
+            ? 0
+            : !a.source_date
+              ? 1
+              : !b.source_date
+                ? -1
+                : (new Date(a.source_date) - new Date(b.source_date)) *
+                  (ascending ? 1 : -1),
+        );
       }
       const total = data.length,
         offset = Number(url.searchParams.get("offset") || 0),
@@ -279,7 +312,7 @@ try {
     name: "maria.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(
-      "Nome;Telefone;Campanha\nNovo contato;11988887777;Maria\nContato no estoque;11900000001;Maria\nInválido;123;Maria",
+      "Nome;Telefone;Campanha;Data\nNovo contato;11988887777;Maria;05/11/2026 23:59\nContato no estoque;11900000001;Maria;05/11/2026\nInválido;123;Maria;05/11/2026",
     ),
   });
   await expect(
@@ -296,6 +329,31 @@ try {
   await page
     .getByRole("button", { name: "Estoque de leads", exact: true })
     .click();
+  await expect(page.locator(".lead-card h3").first()).toHaveText(
+    "Novo contato",
+  );
+  await expect(page.locator(".lead-card h3").last()).toHaveText(
+    "Lead sem data",
+  );
+  await page
+    .getByLabel("Ordem de liberação", { exact: true })
+    .selectOption("oldest");
+  await expect(page.locator(".lead-card h3").first()).toHaveText(
+    "Contato no estoque",
+  );
+  await page.getByLabel("Data do lead: de", { exact: true }).fill("2026-11-05");
+  await page
+    .getByLabel("Data do lead: até", { exact: true })
+    .fill("2026-11-05");
+  await expect(page.locator(".lead-card")).toHaveCount(1);
+  await expect(page.locator(".lead-card h3")).toHaveText("Novo contato");
+  await expect(page.locator(".lead-card")).toContainText("05/11/2026");
+  await page.getByLabel("Data do lead: de", { exact: true }).fill("2026-11-06");
+  await expect(
+    page.getByRole("button", { name: "Liberar 50 leads", exact: true }),
+  ).toBeDisabled();
+  await page.getByLabel("Data do lead: de", { exact: true }).fill("2026-11-05");
+  await expect(page.locator(".lead-card")).toHaveCount(1);
   await page.getByLabel("Quantidade", { exact: true }).fill("1");
   await page
     .getByRole("button", { name: "Liberar 1 leads", exact: true })
@@ -304,6 +362,12 @@ try {
     "1 leads liberados",
   );
   assert.equal(requests.find((r) => r.name === "release").body.p_quantity, 1);
+  assert.deepEqual(requests.find((r) => r.name === "release").body.p_ids, [
+    "5",
+  ]);
+  console.log(
+    "Estoque: ordem por data, período inclusivo em Brasília, datas ausentes e liberação restrita aos IDs filtrados passaram.",
+  );
   await page
     .getByRole("button", { name: "Fila de atendimento", exact: true })
     .click();

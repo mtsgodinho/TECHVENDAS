@@ -2,6 +2,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
 import Workspace from "../components/Workspace";
+import Brand from "../components/Brand";
 import { loginAddress } from "../lib/username";
 type Profile = { id: string; full_name: string; role: "admin" | "attendant" };
 function Icon({
@@ -129,10 +130,7 @@ export default function Home() {
     return (
       <main className="login-shell">
         <section className="brand-story">
-          <a className="brand" href="/">
-            Tech<span>Vendas</span>
-            <small>GESTÃO DE LEADS</small>
-          </a>
+          <Brand />
           <div>
             <p className="eyebrow">CONEXÕES QUE GERAM RESULTADOS</p>
             <h1>

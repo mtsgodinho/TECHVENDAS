@@ -1166,3 +1166,28 @@ td {
 .transfer-panel > button {
   margin-top: 16px;
 }
+.brand-logo {
+  max-width: 100%;
+  width: 220px;
+  line-height: 0;
+}
+.brand-mark {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.sidebar .brand-logo {
+  width: 198px;
+  align-self: center;
+}
+.sidebar:has(.brand-logo) > .eyebrow {
+  margin-top: 26px;
+}
+@media (max-width: 700px) {
+  .brand-story .brand-logo {
+    width: 180px;
+  }
+  .sidebar .brand-logo {
+    width: 180px;
+  }
+}

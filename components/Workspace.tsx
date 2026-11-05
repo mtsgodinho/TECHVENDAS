@@ -15,6 +15,7 @@ import {
 } from "../lib/crm";
 import ImportCsv from "./ImportCsv";
 import LeadEditor from "./LeadEditor";
+import Brand from "./Brand";
 type View =
   | "dashboard"
   | "stock"
@@ -97,6 +98,7 @@ export default function Workspace({
     [batch, setBatch] = useState(""),
     [since, setSince] = useState(""),
     [until, setUntil] = useState(""),
+    [leadOrder, setLeadOrder] = useState("newest"),
     [page, setPage] = useState(0),
     [total, setTotal] = useState(0),
     [selected, setSelected] = useState<string[]>([]),
@@ -148,8 +150,10 @@ export default function Workspace({
     if (status) q = q.eq("status", status);
     if (batch) q = q.eq("batch_id", batch);
     const dates = range();
-    if (dates.since) q = q.gte("updated_at", dates.since);
-    if (dates.until) q = q.lt("updated_at", dates.until);
+    const leadDates = view === "stock" || view === "returned";
+    const dateColumn = leadDates ? "source_date" : "updated_at";
+    if (dates.since) q = q.gte(dateColumn, dates.since);
+    if (dates.until) q = q.lt(dateColumn, dates.until);
     if (query) {
       const text = query
         .replace(/[,%_().\\"\r\n]/g, " ")
@@ -161,10 +165,10 @@ export default function Workspace({
           ? q.or(`name.ilike.%${text}%,phone.ilike.%${digits}%`)
           : q.ilike("name", `%${text}%`);
     }
-    return q
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false });
-  }, [view, status, batch, range, query]);
+    const ascending = leadDates && leadOrder === "oldest";
+    if (leadDates) q = q.order("source_date", { ascending, nullsFirst: false });
+    return q.order("created_at", { ascending }).order("id", { ascending });
+  }, [view, status, batch, range, query, leadOrder]);
   useEffect(() => {
     const client = supabase;
     if (!client) return;
@@ -268,10 +272,22 @@ export default function Workspace({
     setError("");
     setNotice("");
     try {
+      if (since && until && since > until) throw new Error("Período inválido");
+      let ids = selected;
+      if (!ids.length) {
+        const { data: available, error: selectionError } =
+          await buildQuery().limit(quantity);
+        if (selectionError) throw selectionError;
+        ids = (available as Lead[]).map((lead) => lead.id);
+        if (!ids.length) {
+          setNotice("Nenhum lead disponível para os filtros escolhidos.");
+          return;
+        }
+      }
       const { data, error } = await supabase.rpc("release_leads", {
         p_attendant: attendant,
-        p_quantity: selected.length || quantity,
-        p_ids: selected.length ? selected : null,
+        p_quantity: ids.length,
+        p_ids: ids,
         p_returned: view === "returned",
       });
       if (error) throw error;
@@ -388,10 +404,7 @@ export default function Workspace({
   return (
     <div className="workspace">
       <aside className={menu ? "sidebar open" : "sidebar"}>
-        <a href="/" className="brand">
-          Tech<span>Vendas</span>
-          <small>GESTÃO DE LEADS</small>
-        </a>
+        <Brand />
         <p className="eyebrow">ÁREA DE TRABALHO</p>
         <nav className="crm-nav">
           {nav.map((item) => (
@@ -570,9 +583,12 @@ export default function Workspace({
                 <label>
                   {view === "dashboard"
                     ? "Atividades a partir de"
-                    : "Atualizados a partir de"}
+                    : canSelect
+                      ? "Data do lead: de"
+                      : "Atualizados a partir de"}
                   <input
                     type="date"
+                    aria-label={canSelect ? "Data do lead: de" : undefined}
                     value={since}
                     onChange={(e) => {
                       setSince(e.target.value);
@@ -584,6 +600,7 @@ export default function Workspace({
                   Até
                   <input
                     type="date"
+                    aria-label={canSelect ? "Data do lead: até" : undefined}
                     min={since || undefined}
                     value={until}
                     onChange={(e) => {
@@ -592,7 +609,29 @@ export default function Workspace({
                     }}
                   />
                 </label>
-                {(status || batch || since || until || search) && (
+                {canSelect && (
+                  <label>
+                    Ordem de liberação
+                    <select
+                      aria-label="Ordem de liberação"
+                      value={leadOrder}
+                      onChange={(e) => {
+                        setLeadOrder(e.target.value);
+                        setPage(0);
+                        setSelected([]);
+                      }}
+                    >
+                      <option value="newest">Mais novos primeiro</option>
+                      <option value="oldest">Mais antigos primeiro</option>
+                    </select>
+                  </label>
+                )}
+                {(status ||
+                  batch ||
+                  since ||
+                  until ||
+                  search ||
+                  leadOrder !== "newest") && (
                   <button
                     className="text-button"
                     onClick={() => {
@@ -600,6 +639,7 @@ export default function Workspace({
                       setBatch("");
                       setSince("");
                       setUntil("");
+                      setLeadOrder("newest");
                       setSearch("");
                       setPage(0);
                     }}
@@ -608,6 +648,14 @@ export default function Workspace({
                   </button>
                 )}
               </div>
+              {canSelect && (
+                <p className="footnote">
+                  A data do lead é a data original mapeada no CSV. Leads sem
+                  essa data ficam no fim da lista e são excluídos quando você
+                  filtra um período. A liberação respeita os filtros e a ordem
+                  escolhidos.
+                </p>
+              )}
               {invalidDates && (
                 <p className="notice error" role="alert">
                   A data final deve ser igual ou posterior à data inicial.
@@ -735,7 +783,7 @@ export default function Workspace({
                             ? `${selected.length} selecionados`
                             : view === "returned"
                               ? "Selecione os contatos abaixo."
-                              : "Libere os próximos disponíveis ou selecione os contatos."}
+                              : `${total} contatos nos filtros atuais. Libere por ordem de data ou selecione os contatos.`}
                         </p>
                       </div>
                       <div className="release-controls">
@@ -776,6 +824,8 @@ export default function Workspace({
                           disabled={
                             busy ||
                             loading ||
+                            invalidDates ||
+                            total === 0 ||
                             !attendant ||
                             Boolean(error) ||
                             (!selected.length && view === "returned") ||
@@ -870,6 +920,13 @@ export default function Workspace({
                                 {lead.batch_id
                                   ? ` · Lote ${lead.batch_id.slice(0, 8)}`
                                   : ""}
+                              </p>
+                              <p className="muted lead-origin">
+                                Data do lead:{" "}
+                                {lead.source_date
+                                  ? formatDate(lead.source_date)
+                                  : "Não informada"}{" "}
+                                · Importado em {formatDate(lead.created_at)}
                               </p>
                               {lead.notes && (
                                 <p className="lead-note">{lead.notes}</p>
