@@ -195,6 +195,13 @@ export default function Workspace({
           activityQuery = activityQuery.lt("created_at", dates.until);
         if (batch) activityQuery = activityQuery.eq("leads.batch_id", batch);
         if (status) activityQuery = activityQuery.eq("leads.status", status);
+        const batchQuery = admin
+          ? client!.from("batches").select("id,created_at,attendant_id")
+          : client!
+              .from("batches")
+              .select("id,created_at,attendant_id,assignments!inner(id)")
+              .eq("assignments.attendant_id", profile.id)
+              .is("assignments.ended_at", null);
         const [m, p, b, list, a] = await Promise.all([
           client!.rpc("dashboard", {
             p_since: dates.since,
@@ -203,11 +210,7 @@ export default function Workspace({
             p_status: status || null,
           }),
           client!.from("profiles").select("id,full_name,role"),
-          client!
-            .from("batches")
-            .select("id,created_at,attendant_id")
-            .order("created_at", { ascending: false })
-            .limit(500),
+          batchQuery.order("created_at", { ascending: false }).limit(500),
           view === "import" || view === "dashboard"
             ? Promise.resolve({ data: [], count: 0, error: null })
             : buildQuery().range(
@@ -221,6 +224,14 @@ export default function Workspace({
         setMetrics(m.data as Metrics);
         setPeople(p.data as Profile[]);
         setBatches(b.data as Batch[]);
+        if (
+          !admin &&
+          batch &&
+          !(b.data as Batch[]).some((item) => item.id === batch)
+        ) {
+          setBatch("");
+          setPage(0);
+        }
         setLeads(list.data as Lead[]);
         setTotal(list.count || 0);
         if (page > 0 && (list.count || 0) <= page * pageSize)
@@ -249,7 +260,17 @@ export default function Workspace({
     return () => {
       active = false;
     };
-  }, [view, page, batch, status, range, buildQuery, refresh]);
+  }, [
+    view,
+    page,
+    batch,
+    status,
+    range,
+    buildQuery,
+    refresh,
+    admin,
+    profile.id,
+  ]);
   function navigate(next: View) {
     setView(next);
     setMenu(false);
@@ -603,6 +624,7 @@ export default function Workspace({
                 <label>
                   Lote
                   <select
+                    aria-label="Filtrar por lote"
                     value={batch}
                     onChange={(e) => {
                       setBatch(e.target.value);

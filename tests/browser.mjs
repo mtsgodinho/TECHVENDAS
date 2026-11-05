@@ -142,14 +142,48 @@ async function setup(role) {
     }
     const visible = () =>
       leads.filter((l) => role === "admin" || l.assigned_to === userId);
-    if (path === "/rest/v1/batches")
-      return response([
+    if (path === "/rest/v1/batches") {
+      const data = [
         {
           id: "00000000-0000-0000-0000-000000000010",
           created_at: now,
           attendant_id: attendantId,
         },
-      ]);
+        {
+          id: "00000000-0000-0000-0000-000000000011",
+          created_at: now,
+          attendant_id: "00000000-0000-0000-0000-000000000003",
+        },
+        {
+          id: "00000000-0000-0000-0000-000000000012",
+          created_at: now,
+          attendant_id: attendantId,
+        },
+      ];
+      if (role !== "admin") {
+        assert.ok(
+          url.searchParams.get("select").includes("assignments!inner(id)"),
+        );
+        assert.equal(
+          url.searchParams.get("assignments.attendant_id"),
+          `eq.${userId}`,
+        );
+        assert.equal(url.searchParams.get("assignments.ended_at"), "is.null");
+        return response(
+          data.filter(
+            (b) =>
+              b.attendant_id === userId &&
+              leads.some(
+                (l) =>
+                  l.batch_id === b.id &&
+                  l.assigned_to === userId &&
+                  !["sold", "lost", "no_response"].includes(l.status),
+              ),
+          ),
+        );
+      }
+      return response(data);
+    }
     if (path === "/rest/v1/leads") {
       let data = visible();
       for (const [key, value] of url.searchParams) {
@@ -561,6 +595,14 @@ try {
   await expect(
     p.getByRole("button", { name: "Exportar CSV", exact: true }),
   ).toHaveCount(0);
+  const batchOptions = await p
+    .getByLabel("Filtrar por lote", { exact: true })
+    .locator("option")
+    .evaluateAll((options) => options.map((o) => o.value));
+  assert.deepEqual(batchOptions, ["", "00000000-0000-0000-0000-000000000010"]);
+  console.log(
+    "Atendente: lote retirado e lote de outro vendedor não aparecem no filtro.",
+  );
   await p.getByRole("button", { name: "Abrir contato" }).first().click();
   await p
     .getByRole("dialog")
@@ -577,6 +619,31 @@ try {
   await expect(
     p.getByRole("heading", { name: "Contato ativo", exact: true }),
   ).toHaveCount(0);
+  await p
+    .getByLabel("Filtrar por lote", { exact: true })
+    .selectOption("00000000-0000-0000-0000-000000000010");
+  for (const lead of attendant.leads) {
+    if (
+      lead.assigned_to === attendantId &&
+      !["sold", "lost", "no_response"].includes(lead.status)
+    )
+      Object.assign(lead, {
+        assigned_to: null,
+        batch_id: null,
+        status: "pending",
+      });
+  }
+  await p.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(p.getByLabel("Filtrar por lote", { exact: true })).toHaveValue(
+    "",
+  );
+  await expect(
+    p.getByLabel("Filtrar por lote", { exact: true }).locator("option"),
+  ).toHaveCount(1);
+  await expect(p.locator(".lead-card")).toHaveCount(0);
+  console.log(
+    "Atendente: retirada do lote selecionado limpa o filtro e remove contatos após atualizar.",
+  );
   await p.getByRole("button", { name: "Sair", exact: true }).click();
   await p.getByRole("heading", { name: "Acesse sua conta" }).waitFor();
   assert.deepEqual(attendant.errors, []);
