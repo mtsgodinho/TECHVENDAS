@@ -1,0 +1,390 @@
+// UI integration tests: all Supabase requests are intercepted. No real users/leads are created.
+import { chromium, expect } from "@playwright/test";
+import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+const base = process.env.TEST_BASE_URL || "http://localhost:3000";
+const executable =
+  process.env.CHROMIUM_PATH ||
+  (existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined);
+const browser = await chromium.launch({
+  executablePath: executable,
+  headless: true,
+  args: ["--no-sandbox"],
+});
+const adminId = "00000000-0000-0000-0000-000000000001",
+  attendantId = "00000000-0000-0000-0000-000000000002";
+const now = "2026-11-05T15:00:00.000Z";
+const profiles = [
+  { id: adminId, full_name: "Admin de teste", role: "admin" },
+  { id: attendantId, full_name: "Atendente de teste", role: "attendant" },
+];
+const requests = [];
+async function setup(role) {
+  const context = await browser.newContext({
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
+  const page = await context.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const userId = role === "admin" ? adminId : attendantId;
+  const make = (id, name, assigned_to, status = "pending") => ({
+    id,
+    name,
+    phone: `55119${String(id).padStart(8, "0")}`,
+    source: "Teste realizado",
+    campaign: "Campanha de teste",
+    source_date: null,
+    status,
+    assigned_to,
+    batch_id: assigned_to ? "00000000-0000-0000-0000-000000000010" : null,
+    returned_at: null,
+    follow_up_at: null,
+    notes: "",
+    created_at: now,
+    updated_at: now,
+  });
+  const leads = [
+    make("1", "Contato no estoque", null),
+    make("2", "Contato ativo", attendantId),
+    make("3", "Oportunidade interessada", attendantId, "interested"),
+  ];
+  const history = [];
+  await page.route("https://*.supabase.co/**", async (route) => {
+    const url = new URL(route.request().url()),
+      path = url.pathname,
+      method = route.request().method();
+    const body = route.request().postDataJSON() || {};
+    const response = (data, status = 200, extra = {}) =>
+      route.fulfill({
+        status,
+        headers: {
+          "content-type": "application/json",
+          "access-control-allow-origin": "*",
+          ...extra,
+        },
+        body: status === 204 ? undefined : JSON.stringify(data),
+      });
+    if (method === "OPTIONS")
+      return response(null, 204, { "access-control-allow-headers": "*" });
+    if (path === "/auth/v1/token") {
+      assert.equal(body.email, `${role}@techvendas.invalid`);
+      if (body.password === "wrong-password")
+        return response(
+          {
+            error: "invalid_grant",
+            error_description: "Invalid login credentials",
+            msg: "Invalid login credentials",
+          },
+          400,
+        );
+      const encoded = (x) =>
+        Buffer.from(JSON.stringify(x)).toString("base64url");
+      const token = `${encoded({ alg: "HS256", typ: "JWT" })}.${encoded({ sub: userId, role: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600, aud: "authenticated" })}.test-signature`;
+      return response({
+        access_token: token,
+        refresh_token: "test-refresh-token",
+        expires_in: 3600,
+        token_type: "bearer",
+        user: {
+          id: userId,
+          email: `${role}@techvendas.invalid`,
+          aud: "authenticated",
+          role: "authenticated",
+          app_metadata: { provider: "email" },
+          user_metadata: {},
+          created_at: now,
+        },
+      });
+    }
+    if (path === "/auth/v1/logout") return response(null, 204);
+    if (path === "/auth/v1/user")
+      return response({
+        id: userId,
+        email: `${role}@techvendas.invalid`,
+        aud: "authenticated",
+        role: "authenticated",
+        app_metadata: {},
+        user_metadata: {},
+      });
+    if (path === "/rest/v1/profiles") {
+      let data =
+        role === "admin" ? profiles : profiles.filter((p) => p.id === userId);
+      if (url.searchParams.has("id"))
+        data = data.filter((p) => `eq.${p.id}` === url.searchParams.get("id"));
+      return response(
+        route.request().headers().accept?.includes("object") ? data[0] : data,
+      );
+    }
+    const visible = () =>
+      leads.filter((l) => role === "admin" || l.assigned_to === userId);
+    if (path === "/rest/v1/batches")
+      return response([
+        {
+          id: "00000000-0000-0000-0000-000000000010",
+          created_at: now,
+          attendant_id: attendantId,
+        },
+      ]);
+    if (path === "/rest/v1/leads") {
+      let data = visible();
+      for (const [key, value] of url.searchParams) {
+        if (key === "assigned_to") {
+          if (value === "is.null")
+            data = data.filter((l) => l.assigned_to === null);
+          if (value === "not.is.null")
+            data = data.filter((l) => l.assigned_to !== null);
+        }
+        if (key === "returned_at" && value === "is.null")
+          data = data.filter((l) => l.returned_at === null);
+        if (key === "status") {
+          if (value.startsWith("eq."))
+            data = data.filter((l) => l.status === value.slice(3));
+          if (value.startsWith("in."))
+            data = data.filter((l) => value.includes(l.status));
+          if (value.startsWith("not.in."))
+            data = data.filter((l) => !value.includes(l.status));
+        }
+      }
+      const total = data.length,
+        offset = Number(url.searchParams.get("offset") || 0),
+        limit = Number(url.searchParams.get("limit") || 1000);
+      data = data.slice(offset, offset + limit);
+      return response(data, 200, {
+        "content-range": `${offset}-${Math.max(offset, offset + data.length - 1)}/${total}`,
+      });
+    }
+    if (path === "/rest/v1/lead_history")
+      return response(
+        history
+          .filter(
+            (h) =>
+              (!url.searchParams.has("lead_id") ||
+                url.searchParams.get("lead_id") === `eq.${h.lead_id}`) &&
+              visible().some((l) => l.id === h.lead_id),
+          )
+          .map((h) => ({
+            ...h,
+            leads: { name: leads.find((l) => l.id === h.lead_id)?.name },
+          })),
+      );
+    if (path === "/rest/v1/rpc/dashboard") {
+      const v = visible();
+      return response({
+        total: v.length,
+        stock: v.filter((l) => !l.assigned_to).length,
+        assigned: v.filter(
+          (l) => l.assigned_to && !["sold", "lost"].includes(l.status),
+        ).length,
+        statuses: Object.fromEntries(
+          [
+            "pending",
+            "contacted",
+            "interested",
+            "follow_up",
+            "no_response",
+            "sold",
+            "lost",
+          ].map((s) => [s, v.filter((l) => l.status === s).length]),
+        ),
+        worked: history.length,
+        worked_today: history.length,
+        worked_week: history.length,
+        sales: v.filter((l) => l.status === "sold").length,
+      });
+    }
+    if (path === "/rest/v1/rpc/import_leads") {
+      requests.push({ name: "import", body });
+      let imported = 0,
+        duplicates = 0;
+      for (const r of body.p_rows) {
+        if (leads.some((l) => l.phone === r.phone)) {
+          duplicates++;
+          continue;
+        }
+        leads.push({ ...make(String(leads.length + 1), r.name, null), ...r });
+        imported++;
+      }
+      return response({ imported, duplicates, invalid: 0 });
+    }
+    if (path === "/rest/v1/rpc/release_leads") {
+      requests.push({ name: "release", body });
+      const stock = leads
+        .filter(
+          (l) =>
+            !l.assigned_to &&
+            l.status === "pending" &&
+            (!body.p_ids || body.p_ids.includes(l.id)),
+        )
+        .slice(0, body.p_quantity);
+      for (const l of stock) {
+        l.assigned_to = body.p_attendant;
+        l.batch_id = "00000000-0000-0000-0000-000000000010";
+      }
+      return response({
+        released: stock.length,
+        batch_id: "00000000-0000-0000-0000-000000000010",
+      });
+    }
+    if (path === "/rest/v1/rpc/save_lead") {
+      requests.push({ name: "save", body });
+      const l = leads.find((l) => l.id === body.p_id);
+      history.unshift({
+        id: String(history.length + 1),
+        lead_id: l.id,
+        actor_id: userId,
+        old_status: l.status,
+        new_status: body.p_status,
+        notes: body.p_notes,
+        event_type: "update",
+        created_at: now,
+      });
+      Object.assign(l, {
+        status: body.p_status,
+        notes: body.p_notes,
+        follow_up_at: body.p_follow_up,
+        updated_at: now,
+      });
+      if (l.status === "no_response") {
+        l.assigned_to = null;
+        l.returned_at = now;
+      }
+      return response(null);
+    }
+    return response({ message: "Unexpected test route " + path }, 500);
+  });
+  await page.goto(base);
+  await page.getByRole("heading", { name: "Acesse sua conta" }).waitFor();
+  await page.getByLabel("Usuário", { exact: true }).fill(role);
+  await page.getByLabel("Senha", { exact: true }).fill("wrong-password");
+  await page.getByRole("button", { name: "Entrar na plataforma" }).click();
+  await expect(page.locator(".notice[role=alert]")).toContainText(
+    "Não foi possível entrar",
+  );
+  await page.getByLabel("Senha", { exact: true }).fill("test-password");
+  await page.getByRole("button", { name: "Entrar na plataforma" }).click();
+  await page.getByRole("button", { name: "Atualizar dados" }).waitFor();
+  await expect(page.locator(".notice[role=alert]")).toHaveCount(0);
+  return { context, page, errors };
+}
+try {
+  const { context, page, errors } = await setup("admin");
+  await expect(
+    page.getByRole("heading", { name: "Visão geral." }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Importar CSV", exact: true })
+    .first()
+    .click();
+  await page.locator("input[type=file]").setInputFiles({
+    name: "maria.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "Nome;Telefone;Campanha\nNovo contato;11988887777;Maria\nContato no estoque;11900000001;Maria\nInválido;123;Maria",
+    ),
+  });
+  await expect(
+    page.getByText("2 válidos · 0 duplicados no arquivo · 1 inválidos.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Importar 2 leads para o estoque" })
+    .click();
+  await expect(page.locator(".notice[role=status]")).toContainText(
+    "1 importados · 1 duplicados · 1 inválidos",
+  );
+  await page
+    .getByRole("button", { name: "Estoque de leads", exact: true })
+    .click();
+  await page.getByLabel("Quantidade", { exact: true }).fill("1");
+  await page
+    .getByRole("button", { name: "Liberar 1 leads", exact: true })
+    .click();
+  await expect(page.locator(".notice[role=status]")).toContainText(
+    "1 leads liberados",
+  );
+  assert.equal(requests.find((r) => r.name === "release").body.p_quantity, 1);
+  await page
+    .getByRole("button", { name: "Fila de atendimento", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Abrir contato", exact: true })
+    .first()
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("combobox")
+    .first()
+    .selectOption("follow_up");
+  await page
+    .getByLabel("Retorno agendado (horário de Brasília)")
+    .fill("2026-12-01T14:00");
+  await page
+    .getByLabel("Observações", { exact: true })
+    .fill("Cliente pediu retorno amanhã.");
+  await page.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(page.locator(".notice[role=status]")).toContainText(
+    "Contato salvo com sucesso",
+  );
+  assert.equal(
+    requests.find((r) => r.name === "save").body.p_follow_up,
+    "2026-12-01T17:00:00.000Z",
+  );
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Exportar CSV" }).click();
+  assert.match((await download).suggestedFilename(), /^techvendas-.*\.csv$/);
+  await page.getByRole("button", { name: "Visão geral", exact: true }).click();
+  for (const width of [1440, 820, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect(
+      page.getByRole("heading", { name: "Visão geral." }),
+    ).toBeVisible();
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+      false,
+    );
+    console.log(`Admin: layout ${width}px sem overflow.`);
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: "/tmp/techvendas-admin.png", fullPage: true });
+  assert.deepEqual(errors, []);
+  await context.close();
+  const attendant = await setup("attendant");
+  const p = attendant.page;
+  await expect(
+    p.getByRole("button", { name: "Importar CSV", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    p.getByRole("button", { name: "Estoque de leads", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    p.getByRole("button", { name: "Exportar CSV", exact: true }),
+  ).toHaveCount(0);
+  await p.getByRole("button", { name: "Abrir contato" }).first().click();
+  await p
+    .getByRole("dialog")
+    .getByRole("combobox")
+    .first()
+    .selectOption("no_response");
+  await p
+    .getByLabel("Observações", { exact: true })
+    .fill("Não respondeu ao contato.");
+  await p.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(p.locator(".notice[role=status]")).toContainText(
+    "Contato salvo",
+  );
+  await expect(
+    p.getByRole("heading", { name: "Contato ativo", exact: true }),
+  ).toHaveCount(0);
+  await p.getByRole("button", { name: "Sair", exact: true }).click();
+  await p.getByRole("heading", { name: "Acesse sua conta" }).waitFor();
+  assert.deepEqual(attendant.errors, []);
+  await attendant.context.close();
+  console.log(
+    "UI passou: login e erro, CSV/mapeamento, liberação, agendamento, exportação, perfis, devolução e logout. Supabase interceptado; nenhum dado remoto foi alterado.",
+  );
+} finally {
+  await browser.close();
+}
