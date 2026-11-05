@@ -252,6 +252,8 @@ export default function Workspace({
     setPage(0);
     setStatus("");
     setBatch("");
+    setSince("");
+    setUntil("");
     setSearch("");
     setQuery("");
     setSelected([]);
@@ -580,35 +582,39 @@ export default function Workspace({
                     ))}
                   </select>
                 </label>
-                <label>
-                  {view === "dashboard"
-                    ? "Atividades a partir de"
-                    : canSelect
-                      ? "Data do lead: de"
-                      : "Atualizados a partir de"}
-                  <input
-                    type="date"
-                    aria-label={canSelect ? "Data do lead: de" : undefined}
-                    value={since}
-                    onChange={(e) => {
-                      setSince(e.target.value);
-                      setPage(0);
-                    }}
-                  />
-                </label>
-                <label>
-                  Até
-                  <input
-                    type="date"
-                    aria-label={canSelect ? "Data do lead: até" : undefined}
-                    min={since || undefined}
-                    value={until}
-                    onChange={(e) => {
-                      setUntil(e.target.value);
-                      setPage(0);
-                    }}
-                  />
-                </label>
+                {!canSelect && (
+                  <>
+                    <label>
+                      {view === "dashboard"
+                        ? "Atividades a partir de"
+                        : canSelect
+                          ? "Data do lead: de"
+                          : "Atualizados a partir de"}
+                      <input
+                        type="date"
+                        aria-label={canSelect ? "Data do lead: de" : undefined}
+                        value={since}
+                        onChange={(e) => {
+                          setSince(e.target.value);
+                          setPage(0);
+                        }}
+                      />
+                    </label>
+                    <label>
+                      Até
+                      <input
+                        type="date"
+                        aria-label={canSelect ? "Data do lead: até" : undefined}
+                        min={since || undefined}
+                        value={until}
+                        onChange={(e) => {
+                          setUntil(e.target.value);
+                          setPage(0);
+                        }}
+                      />
+                    </label>
+                  </>
+                )}
                 {canSelect && (
                   <label>
                     Ordem de liberação
@@ -621,8 +627,12 @@ export default function Workspace({
                         setSelected([]);
                       }}
                     >
-                      <option value="newest">Mais novos primeiro</option>
-                      <option value="oldest">Mais antigos primeiro</option>
+                      <option value="newest">
+                        Mais novos para mais antigos
+                      </option>
+                      <option value="oldest">
+                        Mais antigos para mais novos
+                      </option>
                     </select>
                   </label>
                 )}
@@ -650,10 +660,9 @@ export default function Workspace({
               </div>
               {canSelect && (
                 <p className="footnote">
-                  A data do lead é a data original mapeada no CSV. Leads sem
-                  essa data ficam no fim da lista e são excluídos quando você
-                  filtra um período. A liberação respeita os filtros e a ordem
-                  escolhidos.
+                  A ordem usa a data original do lead mapeada no CSV, visível em
+                  cada contato. Leads sem data ficam no fim da lista. A
+                  liberação segue a ordem escolhida.
                 </p>
               )}
               {invalidDates && (

@@ -79,7 +79,7 @@ Essas validações não substituem o login real e o RLS no projeto Supabase apó
 7. Registrar venda/perdido e verificar finalizados e indicadores. Uma atendente não pode editar um finalizado nem um lead de outra pessoa.
 8. Exportar resultados com filtros e testar busca/paginação. Sair de ambas as contas.
 
-As datas são armazenadas em `timestamptz`, exibidas em `America/Sao_Paulo`. No dashboard, o período filtra as atividades; totais e funil mostram a situação atual dentro do lote/status escolhido. No estoque e em Sem resposta, o período filtra a data original do lead (`source_date`, mapeada no CSV). Você pode ordenar pelos mais novos ou mais antigos. Leads sem data ficam no fim e não entram em períodos filtrados. A liberação automática busca até 50 IDs respeitando os mesmos filtros e a ordem da lista; a função transacional continua verificando disponibilidade e bloqueando dupla atribuição. Nas demais listas, o período filtra a última atualização.
+As datas são armazenadas em `timestamptz`, exibidas em `America/Sao_Paulo`. No dashboard, o período filtra as atividades; totais e funil mostram a situação atual dentro do lote/status escolhido. No estoque e em Sem resposta, os calendários foram substituídos por um seletor: **Mais novos para mais antigos** ou **Mais antigos para mais novos**, usando a data original do lead (`source_date`, mapeada no CSV). Leads sem data ficam no fim. A liberação automática busca até 50 IDs respeitando os mesmos filtros e a ordem da lista; a função transacional continua verificando disponibilidade e bloqueando dupla atribuição. Nas demais listas, o período filtra a última atualização.
 
 ## Vercel
 

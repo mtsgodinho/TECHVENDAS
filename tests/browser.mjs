@@ -341,19 +341,19 @@ try {
   await expect(page.locator(".lead-card h3").first()).toHaveText(
     "Contato no estoque",
   );
-  await page.getByLabel("Data do lead: de", { exact: true }).fill("2026-11-05");
+  await expect(page.locator(".filter-panel input[type=date]")).toHaveCount(0);
   await page
-    .getByLabel("Data do lead: até", { exact: true })
-    .fill("2026-11-05");
-  await expect(page.locator(".lead-card")).toHaveCount(1);
-  await expect(page.locator(".lead-card h3")).toHaveText("Novo contato");
-  await expect(page.locator(".lead-card")).toContainText("05/11/2026");
-  await page.getByLabel("Data do lead: de", { exact: true }).fill("2026-11-06");
-  await expect(
-    page.getByRole("button", { name: "Liberar 50 leads", exact: true }),
-  ).toBeDisabled();
-  await page.getByLabel("Data do lead: de", { exact: true }).fill("2026-11-05");
-  await expect(page.locator(".lead-card")).toHaveCount(1);
+    .getByLabel("Ordem de liberação", { exact: true })
+    .selectOption({ label: "Mais novos para mais antigos" });
+  await expect(page.locator(".lead-card h3").first()).toHaveText(
+    "Novo contato",
+  );
+  await page
+    .getByLabel("Ordem de liberação", { exact: true })
+    .selectOption({ label: "Mais antigos para mais novos" });
+  await expect(page.locator(".lead-card h3").first()).toHaveText(
+    "Contato no estoque",
+  );
   await page.getByLabel("Quantidade", { exact: true }).fill("1");
   await page
     .getByRole("button", { name: "Liberar 1 leads", exact: true })
@@ -363,10 +363,10 @@ try {
   );
   assert.equal(requests.find((r) => r.name === "release").body.p_quantity, 1);
   assert.deepEqual(requests.find((r) => r.name === "release").body.p_ids, [
-    "5",
+    "1",
   ]);
   console.log(
-    "Estoque: ordem por data, período inclusivo em Brasília, datas ausentes e liberação restrita aos IDs filtrados passaram.",
+    "Estoque: calendários substituídos pelo seletor, ambas as ordens de data e liberação do lead mais antigo passaram.",
   );
   await page
     .getByRole("button", { name: "Fila de atendimento", exact: true })
