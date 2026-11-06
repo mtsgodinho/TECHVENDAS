@@ -29,6 +29,7 @@ export default function LeadEditor({
   const dialog = useRef<HTMLDialogElement>(null),
     [status, setStatus] = useState<Status>(lead.status),
     [notes, setNotes] = useState(lead.notes),
+    [saleAmount, setSaleAmount] = useState(lead.sale_amount?.toString() || ""),
     [date, setDate] = useState(localInput(lead.follow_up_at)),
     [assignee, setAssignee] = useState(lead.assigned_to || ""),
     [source, setSource] = useState(lead.source),
@@ -93,6 +94,8 @@ export default function LeadEditor({
     try {
       const { error } = await supabase.rpc("save_lead", {
         p_id: lead.id,
+        p_sale_amount:
+          status === "sold" ? Number(saleAmount.replace(",", ".")) : null,
         p_status: status,
         p_notes: notes,
         p_follow_up: status === "follow_up" ? brazilInstant(date) : null,
@@ -107,7 +110,9 @@ export default function LeadEditor({
           ? String(error.message)
           : "";
       setMessage(
-        /lead|atendente|observação|retorno|origem|atualize/i.test(text)
+        /lead|venda|valor|atendente|observação|retorno|origem|atualize/i.test(
+          text,
+        )
           ? text
           : "Não foi possível salvar. Confira a conexão e tente novamente.",
       );
@@ -206,6 +211,24 @@ export default function LeadEditor({
             </label>
           )}
         </div>
+        {status === "sold" && (
+          <label>
+            Valor da venda (R$)
+            <input
+              type="number"
+              min="0.01"
+              max="999999999.99"
+              step="0.01"
+              required
+              value={saleAmount}
+              onChange={(e) => setSaleAmount(e.target.value)}
+              disabled={busy || readOnly}
+            />
+            <span className="muted">
+              Comissão do vendedor: R$ 20,00 por venda confirmada.
+            </span>
+          </label>
+        )}
         {status === "follow_up" && (
           <label>
             Retorno agendado (horário de Brasília)

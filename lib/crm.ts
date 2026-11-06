@@ -17,6 +17,7 @@ export const statuses = {
 } as const;
 export type Status = keyof typeof statuses;
 export type Lead = {
+  sale_amount?: number | null;
   id: string;
   name: string;
   phone: string;

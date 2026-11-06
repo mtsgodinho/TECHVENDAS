@@ -387,6 +387,23 @@ async function setup(role) {
       }
       return response({ recalled: rows.length });
     }
+    if (path === "/rest/v1/rpc/finance_summary") {
+      return response({
+        revenue: 300,
+        commission: 40,
+        sales: 2,
+        legacy_sales: 0,
+        sellers: [
+          {
+            seller_id: attendantId,
+            full_name: "Atendente de teste",
+            sales: 2,
+            revenue: 300,
+            commission: 40,
+          },
+        ],
+      });
+    }
     if (path === "/rest/v1/rpc/dashboard") {
       const v = visible();
       return response({
@@ -492,6 +509,9 @@ async function setup(role) {
 }
 try {
   const { context, page, errors, leads } = await setup("admin");
+  await expect(page.getByRole("region", { name: "Financeiro" })).toContainText(
+    "R$ 300,00",
+  );
   await expect(page.locator(".digital-panel")).toHaveCount(4);
   await expect(page.locator(".digital-panel-value").first()).toHaveText("6");
   await expect(
@@ -765,7 +785,15 @@ try {
     .getByRole("dialog")
     .getByRole("combobox")
     .first()
+    .selectOption("sold");
+  await expect(p.getByLabel("Valor da venda (R$)")).toBeVisible();
+  await p.getByLabel("Valor da venda (R$)").fill("149.90");
+  await p
+    .getByRole("dialog")
+    .getByRole("combobox")
+    .first()
     .selectOption("no_response");
+  await expect(p.getByLabel("Valor da venda (R$)")).toHaveCount(0);
   await p
     .getByLabel("Observações", { exact: true })
     .fill("Não respondeu ao contato.");

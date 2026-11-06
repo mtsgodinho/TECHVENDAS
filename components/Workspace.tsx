@@ -17,6 +17,7 @@ import LeadEditor from "./LeadEditor";
 import Brand from "./Brand";
 import SellerBatches from "./SellerBatches";
 import DigitalPanel from "./DigitalPanel";
+import FinancePanel from "./FinancePanel";
 import UserManagement from "./UserManagement";
 type View =
   | "dashboard"
@@ -572,6 +573,9 @@ export default function Workspace({
                     />
                   ))}
                 </div>
+              )}
+              {(view === "dashboard" || (!admin && view === "leads")) && (
+                <FinancePanel admin={admin} refresh={refresh} />
               )}
               {admin && view === "leads" && (
                 <SellerBatches
