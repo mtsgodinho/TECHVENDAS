@@ -18,6 +18,7 @@ import Brand from "./Brand";
 import SellerBatches from "./SellerBatches";
 import DigitalPanel from "./DigitalPanel";
 import FinancePanel from "./FinancePanel";
+import SupportCenter from "./SupportCenter";
 import MyProfile from "./MyProfile";
 import UserManagement from "./UserManagement";
 type View =
@@ -29,7 +30,8 @@ type View =
   | "finished"
   | "import"
   | "users"
-  | "profile";
+  | "profile"
+  | "support";
 const viewTitles: Record<View, string> = {
   dashboard: "Visão geral",
   stock: "Estoque de leads",
@@ -40,6 +42,7 @@ const viewTitles: Record<View, string> = {
   import: "Importar CSV",
   users: "Usuários",
   profile: "Meu perfil",
+  support: "Suporte",
 };
 const initialMetrics: Metrics = {
   total: 0,
@@ -63,6 +66,7 @@ function Glyph({ kind }: { kind: View | "refresh" }) {
     import: "M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5",
     users:
       "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m9-3v6m-3-3h6",
+    support: "M4 4h16v12H8l-4 4V4zM8 8h8m-8 4h5",
     profile: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M4 22v-3a8 8 0 0 1 16 0v3",
     refresh: "M3 10a9 9 0 1 1 2 8M3 3v7h7",
   };
@@ -92,6 +96,7 @@ export default function Workspace({
   loggingOut: boolean;
 }) {
   const [ownProfile, setOwnProfile] = useState(profile);
+  const [supportUnread, setSupportUnread] = useState(0);
   const admin = profile.role === "admin";
   const [view, setView] = useState<View>(admin ? "dashboard" : "leads"),
     [menu, setMenu] = useState(false),
@@ -186,7 +191,7 @@ export default function Workspace({
   useEffect(() => {
     const client = supabase;
     if (!client) return;
-    if (view === "users" || view === "profile") {
+    if (view === "users" || view === "profile" || view === "support") {
       setLoading(false);
       return;
     }
@@ -414,6 +419,7 @@ export default function Workspace({
         "followup",
         "finished",
         "import",
+        "support",
         "users",
         "profile",
       ]
@@ -451,6 +457,11 @@ export default function Workspace({
             >
               <Glyph kind={item} />
               {viewTitles[item]}
+              {item === "support" && supportUnread > 0 && (
+                <span className="nav-count" aria-live="polite">
+                  {supportUnread}
+                </span>
+              )}
               {item === "returned" && !!metrics.statuses.no_response && (
                 <span className="nav-count">
                   {metrics.statuses.no_response}
@@ -534,7 +545,8 @@ export default function Workspace({
                 view !== "import" &&
                 view !== "dashboard" &&
                 view !== "users" &&
-                view !== "profile" && (
+                view !== "profile" &&
+                view !== "support" && (
                   <button
                     className="secondary"
                     onClick={download}
@@ -561,7 +573,7 @@ export default function Workspace({
               </button>
             </p>
           )}
-          {view === "profile" ? (
+          {view === "support" ? null : view === "profile" ? (
             <MyProfile profile={ownProfile} onSaved={setOwnProfile} />
           ) : view === "users" && admin ? (
             <UserManagement actor={profile.id} onChanged={reload} />
@@ -1075,6 +1087,20 @@ export default function Workspace({
                 reload();
               }}
             />
+          )}
+          <SupportCenter
+            profile={ownProfile}
+            visible={view === "support"}
+            onUnread={setSupportUnread}
+          />
+          {admin && supportUnread > 0 && view !== "support" && (
+            <button
+              className="support-launch"
+              onClick={() => navigate("support")}
+              aria-live="polite"
+            >
+              ✉ {supportUnread} mensagem(ns) no suporte
+            </button>
           )}
           <footer className="app-footer">
             TechVendas · Contatos manuais, resultados organizados.

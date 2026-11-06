@@ -29,6 +29,18 @@ async function setup(role) {
     permissions: ["clipboard-read", "clipboard-write"],
   });
   const page = await context.newPage();
+  const supportId = "00000000-0000-0000-0000-000000000099";
+  let supportClosed = false,
+    supportRead = 0;
+  const supportMessages = [
+    {
+      id: 1,
+      thread_id: supportId,
+      sender_id: attendantId,
+      body: "Preciso de ajuda com meu lote",
+      created_at: now,
+    },
+  ];
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const userId = role === "admin" ? adminId : attendantId;
@@ -387,6 +399,53 @@ async function setup(role) {
       }
       return response({ recalled: rows.length });
     }
+    if (path === "/rest/v1/rpc/support_unread")
+      return response(
+        supportMessages.filter(
+          (m) => m.sender_id !== userId && m.id > supportRead,
+        ).length,
+      );
+    if (path === "/rest/v1/rpc/support_list")
+      return response(
+        body.p_closed === supportClosed
+          ? [
+              {
+                id: supportId,
+                seller_id: attendantId,
+                full_name: "Bianca suporte",
+                status: supportClosed ? "closed" : "open",
+                updated_at: now,
+                unread: supportMessages.filter(
+                  (m) => m.sender_id !== userId && m.id > supportRead,
+                ).length,
+              },
+            ]
+          : [],
+      );
+    if (path === "/rest/v1/rpc/support_read") {
+      supportRead = body.p_through;
+      return response(null);
+    }
+    if (path === "/rest/v1/rpc/support_send") {
+      requests.push({ name: "support-send", body });
+      supportMessages.push({
+        id: supportMessages.length + 1,
+        thread_id: supportId,
+        sender_id: userId,
+        body: body.p_body,
+        created_at: now,
+      });
+      supportClosed = false;
+      return response(supportId);
+    }
+    if (path === "/rest/v1/rpc/support_close") {
+      supportClosed = true;
+      return response(null);
+    }
+    if (path === "/rest/v1/support_threads")
+      return response({ status: supportClosed ? "closed" : "open" });
+    if (path === "/rest/v1/support_messages")
+      return response([...supportMessages].reverse());
     if (path === "/rest/v1/rpc/update_my_profile") {
       requests.push({ name: "self-profile", body });
       return response(null);
@@ -513,6 +572,39 @@ async function setup(role) {
 }
 try {
   const { context, page, errors, leads } = await setup("admin");
+  await expect(
+    page.getByRole("button", { name: /mensagem\(ns\) no suporte/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /^Suporte/ }).click();
+  await page.getByRole("button", { name: /Bianca suporte/ }).click();
+  await expect(page.getByRole("log")).toContainText(
+    "Preciso de ajuda com meu lote",
+  );
+  await page
+    .getByLabel("Mensagem", { exact: true })
+    .fill("Olá, vou conferir seu lote.");
+  await page
+    .getByRole("button", { name: "Enviar mensagem", exact: true })
+    .click();
+  await expect(page.getByRole("log")).toContainText(
+    "Olá, vou conferir seu lote.",
+  );
+  await page
+    .getByRole("button", { name: "Finalizar suporte", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirmar finalização", exact: true })
+    .click();
+  await expect(
+    page.getByText("Atendimento finalizado. O histórico foi preservado.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByLabel("Mostrar suportes").selectOption("closed");
+  await expect(
+    page.getByRole("button", { name: /Bianca suporte/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Visão geral", exact: true }).click();
   await expect(page.getByRole("region", { name: "Financeiro" })).toContainText(
     "R$ 300,00",
   );
@@ -784,23 +876,30 @@ try {
   console.log(
     "Atendente: lote retirado e lote de outro vendedor não aparecem no filtro.",
   );
+  await p.getByRole("button", { name: /Abrir suporte/ }).click();
+  await p.getByLabel("Mensagem", { exact: true }).fill("Olá, preciso de ajuda");
+  await p.getByRole("button", { name: "Enviar mensagem", exact: true }).click();
+  await expect(p.getByRole("log")).toContainText("Olá, preciso de ajuda");
+  await p.getByRole("button", { name: "Fechar chat", exact: true }).click();
+  await expect(p.getByRole("region", { name: "Chat de suporte" })).toHaveCount(
+    0,
+  );
   await p.getByRole("button", { name: "Meu perfil", exact: true }).click();
   await p.getByLabel("Nome", { exact: true }).fill("Bianca atualizada");
   const photoFixture = await p.evaluate(() => {
-    const canvas = document.createElement("canvas"); canvas.width=32; canvas.height=32;
-    const ctx=canvas.getContext("2d");ctx.fillStyle="#00cfee";ctx.fillRect(0,0,32,32);
+    const canvas = document.createElement("canvas");
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#00cfee";
+    ctx.fillRect(0, 0, 32, 32);
     return canvas.toDataURL("image/png").split(",")[1];
   });
-  await p
-    .getByLabel("Foto de perfil")
-    .setInputFiles({
-      name: "foto.png",
-      mimeType: "image/png",
-      buffer: Buffer.from(
-        photoFixture,
-        "base64",
-      ),
-    });
+  await p.getByLabel("Foto de perfil").setInputFiles({
+    name: "foto.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(photoFixture, "base64"),
+  });
   await expect(p.getByAltText("Prévia da foto de perfil")).toBeVisible();
   await p.getByRole("button", { name: "Salvar perfil", exact: true }).click();
   await expect(p.getByRole("status")).toContainText("Perfil atualizado");

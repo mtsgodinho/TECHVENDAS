@@ -1441,3 +1441,24 @@ td {
 .profile-initial { display: grid; place-items: center; width:112px; height:112px; font-size:40px; color:#00cfee; background:#101d31; }
 .profile-avatar { display:block; margin-bottom:8px; }
 .profile-panel input[type=file] { max-width:100%; padding:12px; }
+
+.support-launch { position:fixed; right:24px; bottom:22px; z-index:40; border-radius:28px; box-shadow:0 8px 28px #0008; display:flex; align-items:center; gap:10px; }
+.support-widget { position:fixed; right:24px; bottom:88px; z-index:45; width:min(470px,calc(100vw - 24px)); max-height:calc(100dvh - 110px); overflow:auto; padding:20px; border:1px solid #23556b; border-radius:20px; background:#0c1626; box-shadow:0 16px 64px #0009; }
+.support-admin { padding:24px; }
+.support-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.support-heading h2 { font-size:22px; }
+.support-layout { display:grid; grid-template-columns:minmax(220px,1fr) minmax(0,2fr); gap:24px; margin-top:20px; }
+.support-list,.support-conversation { display:flex; flex-direction:column; gap:12px; min-width:0; }
+.support-ticket { display:flex; flex-direction:column; align-items:flex-start; gap:8px; background:#101e30; color:#dce9fa; border:1px solid #223047; padding:14px; text-align:left; overflow-wrap:anywhere; }
+.support-ticket.selected { border-color:#00cfee; background:#062b38; }
+.support-ticket span { font-size:12px; }
+.support-messages { height:360px; overflow:auto; display:flex; flex-direction:column; gap:14px; padding:12px; background:#080f1d; border-radius:12px; }
+.support-message { align-self:flex-start; max-width:90%; padding:12px; background:#17283e; border-radius:12px; overflow-wrap:anywhere; }
+.support-message.own { align-self:flex-end; background:#073547; }
+.support-message p { white-space:pre-wrap; margin:8px 0; }
+.support-message time { font-size:10px; color:#adc1d6; }
+.support-conversation form { display:grid; gap:12px; }
+.support-widget .support-layout { grid-template-columns:minmax(0,1fr); gap:16px; }
+.support-widget .support-list { max-height:170px; overflow:auto; }
+.support-widget .support-messages { height:230px; }
+@media(max-width:720px) { .support-layout { grid-template-columns:minmax(0,1fr); } .support-admin { padding:16px; } .support-widget { right:12px; bottom:82px; } .support-launch { right:12px; bottom:16px; } .support-heading h2 { font-size:18px; } }

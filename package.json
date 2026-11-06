@@ -8,7 +8,7 @@
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test:rls": "node tests/rls.mjs",
-    "test": "npm run test:username && npm run test:csv && npm run test:rls && npm run test:workflows && npm run test:user-api && npm run test:user-security && npm run test:finance && npm run test:self-profile",
+    "test": "npm run test:username && npm run test:csv && npm run test:rls && npm run test:workflows && npm run test:user-api && npm run test:user-security && npm run test:finance && npm run test:self-profile && npm run test:support",
     "test:csv": "node --experimental-strip-types tests/csv.mjs",
     "test:workflows": "node tests/workflows.mjs",
     "test:ui": "node tests/browser.mjs",
@@ -16,7 +16,8 @@
     "test:user-api": "node --experimental-strip-types tests/user-api.mjs",
     "test:user-security": "node tests/user-security.mjs",
     "test:finance": "node tests/finance.mjs",
-    "test:self-profile": "node tests/self-profile.mjs"
+    "test:self-profile": "node tests/self-profile.mjs",
+    "test:support": "node tests/support.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.80.0",
