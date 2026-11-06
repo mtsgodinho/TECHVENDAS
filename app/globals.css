@@ -1462,3 +1462,22 @@ td {
 .support-widget .support-list { max-height:170px; overflow:auto; }
 .support-widget .support-messages { height:230px; }
 @media(max-width:720px) { .support-layout { grid-template-columns:minmax(0,1fr); } .support-admin { padding:16px; } .support-widget { right:12px; bottom:82px; } .support-launch { right:12px; bottom:16px; } .support-heading h2 { font-size:18px; } }
+
+.rank-badge { --rank-color:#cd9465; color:var(--rank-color); display:inline-flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0; }
+.rank-badge svg { width:84px; height:98px; filter:drop-shadow(0 0 10px color-mix(in srgb,var(--rank-color) 25%,transparent)); }
+.rank-silver { --rank-color:#c4cedb; } .rank-gold { --rank-color:#ffd66b; } .rank-platinum { --rank-color:#8de5db; } .rank-diamond { --rank-color:#92c5ff; }
+.rank-small { flex-direction:row; gap:6px; font-size:12px; } .rank-small svg { width:30px; height:36px; }
+.rank-personal { display:flex; align-items:center; gap:28px; padding:24px; margin:20px 0; }
+.rank-personal progress { accent-color:#00cfee; width:min(100%,360px); height:12px; }
+.rank-personal > div { flex:1; min-width:0; }
+.rank-levels { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin:20px 0; }
+.rank-levels > div { display:flex; flex-direction:column; align-items:center; padding:16px 8px; gap:10px; font-size:12px; }
+.ranking-board { padding:24px; }
+.rank-list { list-style:none; padding:0; margin:0; }
+.rank-row { display:flex; align-items:center; gap:18px; padding:18px 12px; border-bottom:1px solid #223047; }
+.rank-self { background:#062a36; border-radius:12px; }
+.rank-position { font-size:24px; font-weight:700; color:#00cfee; min-width:36px; }
+.rank-name { display:flex; flex:1; min-width:0; flex-direction:column; gap:6px; overflow-wrap:anywhere; }
+.rank-score { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+.rank-score strong { font-size:28px; } .rank-score span { font-size:11px; color:#adc1d6; }
+@media(max-width:720px) { .rank-levels { grid-template-columns:repeat(2,minmax(0,1fr)); } .rank-personal { padding:16px; gap:16px; } .rank-badge:not(.rank-small) svg { width:64px; height:76px; } .ranking-board { padding:14px; } .rank-row { gap:10px; padding:16px 4px; flex-wrap:wrap; } .rank-row .profile-avatar { width:32px; height:32px; } }

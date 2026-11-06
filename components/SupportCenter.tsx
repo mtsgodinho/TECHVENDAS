@@ -71,7 +71,6 @@ export default function SupportCenter({
       return;
     }
     setThreads(data || []);
-    setError("");
   }, [closed, page]);
   useEffect(() => {
     void unread();
@@ -162,6 +161,54 @@ export default function SupportCenter({
     setConfirm(false);
     setOlder(false);
   }
+  async function toggleChat() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    // Do not mark an old selection as read before choosing the pending conversation.
+    messageRequest.current++;
+    setSelected(null);
+    setMessages([]);
+    setOlder(false);
+    setOpen(true);
+    if (!supabase) return;
+    // Restore the conversation, including replies in tickets already closed by support.
+    const [active, finished] = await Promise.all([
+      supabase.rpc("support_list", { p_closed: false, p_offset: 0 }),
+      supabase.rpc("support_list", { p_closed: true, p_offset: 0 }),
+    ]);
+    if (active.error || finished.error) {
+      setError("Não foi possível recuperar seu atendimento. Tente novamente.");
+      return;
+    }
+    const activeRows = (active.data || []) as Thread[],
+      closedRows = (finished.data || []) as Thread[];
+    const pending = [...activeRows, ...closedRows]
+      .filter((t) => Number(t.unread) > 0)
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    const target = pending[0] || activeRows[0] || null;
+    setClosed(target?.status === "closed");
+    setPage(0);
+    setThreads(target?.status === "closed" ? closedRows : activeRows);
+    choose(target);
+  }
+  useEffect(() => {
+    if (!shown) return;
+    const refresh = () => {
+      if (document.visibilityState === "visible") {
+        void load();
+        void readMessages();
+        void unread();
+      }
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [shown, load, readMessages, unread]);
   async function send(e: FormEvent) {
     e.preventDefault();
     if (!supabase || !text.trim() || busy) return;
@@ -236,9 +283,14 @@ export default function SupportCenter({
           className="support-launch"
           aria-label={`Abrir suporte${count ? `, ${count} mensagens novas` : ""}`}
           aria-expanded={open}
-          onClick={() => setOpen(!open)}
+          onClick={() => void toggleChat()}
         >
-          ✉ Suporte {count > 0 && <span className="nav-count">{count}</span>}
+          ✉ {count > 0 ? "Nova resposta do suporte" : "Suporte"}{" "}
+          {count > 0 && (
+            <span className="nav-count" aria-live="polite">
+              {count}
+            </span>
+          )}
         </button>
       )}
       {shown && (

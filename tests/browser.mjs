@@ -24,23 +24,26 @@ const profiles = [
   },
 ];
 const requests = [];
-async function setup(role) {
+async function setup(role, sharedSupport) {
   const context = await browser.newContext({
     permissions: ["clipboard-read", "clipboard-write"],
   });
   const page = await context.newPage();
   const supportId = "00000000-0000-0000-0000-000000000099";
-  let supportClosed = false,
-    supportRead = 0;
-  const supportMessages = [
-    {
-      id: 1,
-      thread_id: supportId,
-      sender_id: attendantId,
-      body: "Preciso de ajuda com meu lote",
-      created_at: now,
-    },
-  ];
+  const supportState = sharedSupport || {
+    closed: false,
+    read: {},
+    messages: [
+      {
+        id: 1,
+        thread_id: supportId,
+        sender_id: attendantId,
+        body: "Preciso de ajuda com meu lote",
+        created_at: now,
+      },
+    ],
+  };
+  const supportMessages = supportState.messages;
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const userId = role === "admin" ? adminId : attendantId;
@@ -399,31 +402,54 @@ async function setup(role) {
       }
       return response({ recalled: rows.length });
     }
+    if (path === "/rest/v1/rpc/seller_ranking") {
+      requests.push({ name: "ranking", body });
+      const rows = [
+        {
+          id: attendantId,
+          full_name: "Bianca ranking",
+          avatar_url: null,
+          total_sales: 27,
+          period_sales: 7,
+          position: 1,
+          archived: false,
+        },
+      ];
+      return response({
+        rows,
+        self: userId === attendantId ? rows[0] : null,
+        total_sellers: 1,
+        period_sales: 7,
+      });
+    }
     if (path === "/rest/v1/rpc/support_unread")
       return response(
         supportMessages.filter(
-          (m) => m.sender_id !== userId && m.id > supportRead,
+          (m) =>
+            m.sender_id !== userId && m.id > (supportState.read[userId] || 0),
         ).length,
       );
     if (path === "/rest/v1/rpc/support_list")
       return response(
-        body.p_closed === supportClosed
+        body.p_closed === supportState.closed
           ? [
               {
                 id: supportId,
                 seller_id: attendantId,
                 full_name: "Bianca suporte",
-                status: supportClosed ? "closed" : "open",
+                status: supportState.closed ? "closed" : "open",
                 updated_at: now,
                 unread: supportMessages.filter(
-                  (m) => m.sender_id !== userId && m.id > supportRead,
+                  (m) =>
+                    m.sender_id !== userId &&
+                    m.id > (supportState.read[userId] || 0),
                 ).length,
               },
             ]
           : [],
       );
     if (path === "/rest/v1/rpc/support_read") {
-      supportRead = body.p_through;
+      supportState.read[userId] = body.p_through;
       return response(null);
     }
     if (path === "/rest/v1/rpc/support_send") {
@@ -435,15 +461,15 @@ async function setup(role) {
         body: body.p_body,
         created_at: now,
       });
-      supportClosed = false;
+      supportState.closed = false;
       return response(supportId);
     }
     if (path === "/rest/v1/rpc/support_close") {
-      supportClosed = true;
+      supportState.closed = true;
       return response(null);
     }
     if (path === "/rest/v1/support_threads")
-      return response({ status: supportClosed ? "closed" : "open" });
+      return response({ status: supportState.closed ? "closed" : "open" });
     if (path === "/rest/v1/support_messages")
       return response([...supportMessages].reverse());
     if (path === "/rest/v1/rpc/update_my_profile") {
@@ -604,6 +630,28 @@ try {
   await expect(
     page.getByRole("button", { name: /Bianca suporte/ }),
   ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Ranking e patentes", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Ranking de vendedores" }),
+  ).toContainText("Bianca ranking");
+  for (const value of ["daily", "weekly", "monthly"]) {
+    await page.getByLabel("Período do ranking").selectOption(value);
+    await expect(
+      page.getByText("7 vendas no período · 1 vendedores", { exact: true }),
+    ).toBeVisible();
+  }
+  await page.getByLabel("Período do ranking").selectOption("custom");
+  await page.getByLabel("Data inicial", { exact: true }).fill("2026-11-01");
+  await page.getByLabel("Data final", { exact: true }).fill("2026-11-06");
+  await expect(
+    page.getByText("7 vendas no período · 1 vendedores", { exact: true }),
+  ).toBeVisible();
+  assert.equal(
+    requests.findLast((r) => r.name === "ranking").body.p_until,
+    "2026-11-07T00:00:00-03:00",
+  );
   await page.getByRole("button", { name: "Visão geral", exact: true }).click();
   await expect(page.getByRole("region", { name: "Financeiro" })).toContainText(
     "R$ 300,00",
@@ -884,6 +932,25 @@ try {
   await expect(p.getByRole("region", { name: "Chat de suporte" })).toHaveCount(
     0,
   );
+  await p
+    .getByRole("button", { name: "Ranking e patentes", exact: true })
+    .click();
+  await expect(
+    p.getByText("Faltam 23 vendas para Platina.", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    p.locator(".rank-personal").getByLabel("Patente Ouro"),
+  ).toBeVisible();
+  for (const width of [1440, 820, 390]) {
+    await p.setViewportSize({ width, height: 900 });
+    assert.equal(
+      await p.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      ),
+      false,
+    );
+  }
+  await p.setViewportSize({ width: 1440, height: 900 });
   await p.getByRole("button", { name: "Meu perfil", exact: true }).click();
   await p.getByLabel("Nome", { exact: true }).fill("Bianca atualizada");
   const photoFixture = await p.evaluate(() => {
@@ -974,6 +1041,93 @@ try {
   await p.getByRole("heading", { name: "Acesse sua conta" }).waitFor();
   assert.deepEqual(attendant.errors, []);
   await attendant.context.close();
+  // Two independent sessions share the same chat backend: replies must cross accounts.
+  const shared = {
+    closed: false,
+    read: {},
+    messages: [
+      {
+        id: 1,
+        thread_id: "00000000-0000-0000-0000-000000000099",
+        sender_id: attendantId,
+        body: "Ajuda de duas sessões",
+        created_at: now,
+      },
+    ],
+  };
+  const supportAdmin = await setup("admin", shared),
+    supportSeller = await setup("atendente", shared);
+  await supportAdmin.page.getByRole("button", { name: /^Suporte/ }).click();
+  await supportAdmin.page
+    .getByRole("button", { name: /Bianca suporte/ })
+    .click();
+  await supportAdmin.page
+    .getByLabel("Mensagem", { exact: true })
+    .fill("Resposta entregue ao vendedor");
+  await supportAdmin.page
+    .getByRole("button", { name: "Enviar mensagem", exact: true })
+    .click();
+  await supportSeller.page.bringToFront();
+  await expect(
+    supportSeller.page.getByRole("button", {
+      name: /Abrir suporte, 1 mensagens novas/,
+    }),
+  ).toBeVisible({ timeout: 10000 });
+  await supportSeller.page
+    .getByRole("button", { name: /Abrir suporte/ })
+    .click();
+  await expect(supportSeller.page.getByRole("log")).toContainText(
+    "Resposta entregue ao vendedor",
+  );
+  await supportSeller.page
+    .getByRole("button", { name: "Fechar chat", exact: true })
+    .click();
+  await supportAdmin.page
+    .getByLabel("Mensagem", { exact: true })
+    .fill("Atualização no mesmo atendimento");
+  await supportAdmin.page
+    .getByRole("button", { name: "Enviar mensagem", exact: true })
+    .click();
+  await supportSeller.page
+    .getByRole("button", { name: /Abrir suporte/ })
+    .click();
+  await expect(supportSeller.page.getByRole("log")).toContainText(
+    "Atualização no mesmo atendimento",
+  );
+  await supportSeller.page
+    .getByRole("button", { name: "Fechar chat", exact: true })
+    .click();
+  await supportAdmin.page
+    .getByLabel("Mensagem", { exact: true })
+    .fill("Resposta final antes de encerrar");
+  await supportAdmin.page
+    .getByRole("button", { name: "Enviar mensagem", exact: true })
+    .click();
+  await supportAdmin.page
+    .getByRole("button", { name: "Finalizar suporte", exact: true })
+    .click();
+  await supportAdmin.page
+    .getByRole("button", { name: "Confirmar finalização", exact: true })
+    .click();
+  await supportSeller.page.reload();
+  await supportSeller.page
+    .getByRole("button", { name: /Abrir suporte/ })
+    .click();
+  await expect(supportSeller.page.getByRole("log")).toContainText(
+    "Resposta final antes de encerrar",
+  );
+  await expect(
+    supportSeller.page.getByText(
+      /Atendimento finalizado. O histórico foi preservado/,
+    ),
+  ).toBeVisible();
+  assert.deepEqual(supportAdmin.errors, []);
+  assert.deepEqual(supportSeller.errors, []);
+  await supportAdmin.context.close();
+  await supportSeller.context.close();
+  console.log(
+    "Suporte entre duas sessões: resposta chega ao vendedor sem selecionar chamado manualmente, inclusive após finalizar e recarregar.",
+  );
   console.log(
     "UI passou: login e erro, CSV/mapeamento, liberação, agendamento, exportação, perfis, devolução e logout. Supabase interceptado; nenhum dado remoto foi alterado.",
   );

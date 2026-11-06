@@ -18,6 +18,7 @@ import Brand from "./Brand";
 import SellerBatches from "./SellerBatches";
 import DigitalPanel from "./DigitalPanel";
 import FinancePanel from "./FinancePanel";
+import Rankings from "./Rankings";
 import SupportCenter from "./SupportCenter";
 import MyProfile from "./MyProfile";
 import UserManagement from "./UserManagement";
@@ -31,7 +32,8 @@ type View =
   | "import"
   | "users"
   | "profile"
-  | "support";
+  | "support"
+  | "ranking";
 const viewTitles: Record<View, string> = {
   dashboard: "Visão geral",
   stock: "Estoque de leads",
@@ -43,6 +45,7 @@ const viewTitles: Record<View, string> = {
   users: "Usuários",
   profile: "Meu perfil",
   support: "Suporte",
+  ranking: "Ranking e patentes",
 };
 const initialMetrics: Metrics = {
   total: 0,
@@ -66,6 +69,7 @@ function Glyph({ kind }: { kind: View | "refresh" }) {
     import: "M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5",
     users:
       "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m9-3v6m-3-3h6",
+    ranking: "m12 3 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1Z",
     support: "M4 4h16v12H8l-4 4V4zM8 8h8m-8 4h5",
     profile: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M4 22v-3a8 8 0 0 1 16 0v3",
     refresh: "M3 10a9 9 0 1 1 2 8M3 3v7h7",
@@ -191,7 +195,12 @@ export default function Workspace({
   useEffect(() => {
     const client = supabase;
     if (!client) return;
-    if (view === "users" || view === "profile" || view === "support") {
+    if (
+      view === "users" ||
+      view === "profile" ||
+      view === "support" ||
+      view === "ranking"
+    ) {
       setLoading(false);
       return;
     }
@@ -419,11 +428,12 @@ export default function Workspace({
         "followup",
         "finished",
         "import",
+        "ranking",
         "support",
         "users",
         "profile",
       ]
-    : ["leads", "followup", "finished", "profile"];
+    : ["leads", "followup", "finished", "ranking", "profile"];
   const cards = admin
     ? [
         ["Total importado", metrics.total],
@@ -546,7 +556,8 @@ export default function Workspace({
                 view !== "dashboard" &&
                 view !== "users" &&
                 view !== "profile" &&
-                view !== "support" && (
+                view !== "support" &&
+                view !== "ranking" && (
                   <button
                     className="secondary"
                     onClick={download}
@@ -573,7 +584,9 @@ export default function Workspace({
               </button>
             </p>
           )}
-          {view === "support" ? null : view === "profile" ? (
+          {view === "ranking" ? (
+            <Rankings profile={ownProfile} refresh={refresh} />
+          ) : view === "support" ? null : view === "profile" ? (
             <MyProfile profile={ownProfile} onSaved={setOwnProfile} />
           ) : view === "users" && admin ? (
             <UserManagement actor={profile.id} onChanged={reload} />
