@@ -6,7 +6,6 @@ import {
   formatDate,
   phoneLabel,
   statuses,
-  type Activity,
   type Batch,
   type Lead,
   type Metrics,
@@ -17,7 +16,8 @@ import ImportCsv from "./ImportCsv";
 import LeadEditor from "./LeadEditor";
 import Brand from "./Brand";
 import SellerBatches from "./SellerBatches";
-import DigitalGauge from "./DigitalGauge";
+import DigitalPanel from "./DigitalPanel";
+import UserManagement from "./UserManagement";
 type View =
   | "dashboard"
   | "stock"
@@ -25,7 +25,8 @@ type View =
   | "returned"
   | "followup"
   | "finished"
-  | "import";
+  | "import"
+  | "users";
 const viewTitles: Record<View, string> = {
   dashboard: "Visão geral",
   stock: "Estoque de leads",
@@ -34,6 +35,7 @@ const viewTitles: Record<View, string> = {
   followup: "Em acompanhamento",
   finished: "Finalizados",
   import: "Importar CSV",
+  users: "Usuários",
 };
 const initialMetrics: Metrics = {
   total: 0,
@@ -55,6 +57,8 @@ function Glyph({ kind }: { kind: View | "refresh" }) {
     followup: "M12 8v4l3 3M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18",
     finished: "m5 12 4 4L19 6",
     import: "M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5",
+    users:
+      "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m9-3v6m-3-3h6",
     refresh: "M3 10a9 9 0 1 1 2 8M3 3v7h7",
   };
   return (
@@ -89,7 +93,6 @@ export default function Workspace({
     [leads, setLeads] = useState<Lead[]>([]),
     [people, setPeople] = useState<Profile[]>([]),
     [batches, setBatches] = useState<Batch[]>([]),
-    [activities, setActivities] = useState<Activity[]>([]),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState(""),
@@ -177,6 +180,10 @@ export default function Workspace({
   useEffect(() => {
     const client = supabase;
     if (!client) return;
+    if (view === "users") {
+      setLoading(false);
+      return;
+    }
     let active = true;
     const token = ++request.current;
     setLoading(true);
@@ -185,17 +192,6 @@ export default function Workspace({
     async function load() {
       try {
         const dates = range();
-        let activityQuery = client!
-          .from("lead_history")
-          .select("*,leads!inner(name,batch_id,status)")
-          .order("created_at", { ascending: false })
-          .limit(8);
-        if (dates.since)
-          activityQuery = activityQuery.gte("created_at", dates.since);
-        if (dates.until)
-          activityQuery = activityQuery.lt("created_at", dates.until);
-        if (batch) activityQuery = activityQuery.eq("leads.batch_id", batch);
-        if (status) activityQuery = activityQuery.eq("leads.status", status);
         const batchQuery = admin
           ? client!.from("batches").select("id,created_at,attendant_id")
           : client!
@@ -203,14 +199,14 @@ export default function Workspace({
               .select("id,created_at,attendant_id,assignments!inner(id)")
               .eq("assignments.attendant_id", profile.id)
               .is("assignments.ended_at", null);
-        const [m, p, b, list, a] = await Promise.all([
+        const [m, p, b, list] = await Promise.all([
           client!.rpc("dashboard", {
             p_since: dates.since,
             p_until: dates.until,
             p_batch: batch || null,
             p_status: status || null,
           }),
-          client!.from("profiles").select("id,full_name,role"),
+          client!.from("profiles").select("*"),
           batchQuery.order("created_at", { ascending: false }).limit(500),
           view === "import" || view === "dashboard"
             ? Promise.resolve({ data: [], count: 0, error: null })
@@ -218,9 +214,8 @@ export default function Workspace({
                 page * pageSize,
                 page * pageSize + pageSize - 1,
               ),
-          activityQuery,
         ]);
-        for (const r of [m, p, b, list, a]) if (r.error) throw r.error;
+        for (const r of [m, p, b, list]) if (r.error) throw r.error;
         if (!active || token !== request.current) return;
         setMetrics(m.data as Metrics);
         setPeople(p.data as Profile[]);
@@ -237,11 +232,15 @@ export default function Workspace({
         setTotal(list.count || 0);
         if (page > 0 && (list.count || 0) <= page * pageSize)
           setPage(Math.max(0, Math.ceil((list.count || 0) / pageSize) - 1));
-        setActivities(a.data as Activity[]);
         setAttendant(
           (current) =>
             current ||
-            (p.data as Profile[]).find((x) => x.role === "attendant")?.id ||
+            (p.data as Profile[]).find(
+              (x) =>
+                x.role === "attendant" &&
+                x.is_active !== false &&
+                !x.deleted_at,
+            )?.id ||
             "",
         );
       } catch {
@@ -251,7 +250,6 @@ export default function Workspace({
           );
           setLeads([]);
           setMetrics(initialMetrics);
-          setActivities([]);
         }
       } finally {
         if (active) setLoading(false);
@@ -410,6 +408,7 @@ export default function Workspace({
         "followup",
         "finished",
         "import",
+        "users",
       ]
     : ["leads", "followup", "finished"];
   const cards = admin
@@ -515,15 +514,18 @@ export default function Workspace({
               >
                 <Glyph kind="refresh" />
               </button>
-              {admin && view !== "import" && view !== "dashboard" && (
-                <button
-                  className="secondary"
-                  onClick={download}
-                  disabled={busy || loading || Boolean(error)}
-                >
-                  Exportar CSV
-                </button>
-              )}
+              {admin &&
+                view !== "import" &&
+                view !== "dashboard" &&
+                view !== "users" && (
+                  <button
+                    className="secondary"
+                    onClick={download}
+                    disabled={busy || loading || Boolean(error)}
+                  >
+                    Exportar CSV
+                  </button>
+                )}
               {admin && view === "dashboard" && (
                 <button onClick={() => navigate("import")}>Importar CSV</button>
               )}
@@ -542,7 +544,9 @@ export default function Workspace({
               </button>
             </p>
           )}
-          {view === "import" ? (
+          {view === "users" && admin ? (
+            <UserManagement actor={profile.id} onChanged={reload} />
+          ) : view === "import" ? (
             <ImportCsv
               onImported={() => {
                 reload();
@@ -550,20 +554,25 @@ export default function Workspace({
             />
           ) : (
             <>
-              <div className="metric-grid instrument-grid" aria-busy={loading}>
-                {cards.map(([label, value], index) => (
-                  <DigitalGauge
-                    key={label}
-                    label={String(label)}
-                    value={Number(value)}
-                    total={metrics.total}
-                    loading={loading}
-                    index={index}
-                    tone={(["cyan", "blue", "violet", "green"] as const)[index]}
-                    scope={admin ? "Base geral do CRM" : "Seus contatos"}
-                  />
-                ))}
-              </div>
+              {(view === "dashboard" || (!admin && view === "leads")) && (
+                <div
+                  className="metric-grid digital-panel-grid"
+                  aria-busy={loading}
+                >
+                  {cards.map(([label, value], index) => (
+                    <DigitalPanel
+                      key={label}
+                      label={String(label)}
+                      value={Number(value)}
+                      loading={loading}
+                      index={index}
+                      tone={
+                        (["cyan", "blue", "violet", "green"] as const)[index]
+                      }
+                    />
+                  ))}
+                </div>
+              )}
               {admin && view === "leads" && (
                 <SellerBatches
                   people={people}
@@ -810,35 +819,6 @@ export default function Workspace({
                       </p>
                     </section>
                   </div>
-                  <section className="panel activity-panel">
-                    <div className="section-heading">
-                      <h3>Últimas atividades</h3>
-                      <span className="muted">Mais recentes da equipe</span>
-                    </div>
-                    {!loading && !activities.length && (
-                      <Empty
-                        title="Nenhuma atividade por enquanto"
-                        description="As alterações dos contatos aparecerão aqui automaticamente."
-                      />
-                    )}
-                    {activities.map((a) => (
-                      <div className="activity-row" key={a.id}>
-                        <span className={`status-dot ${a.new_status}`} />
-                        <div>
-                          <strong>{a.leads?.name || "Lead"}</strong>
-                          <p className="muted">
-                            {people.find((p) => p.id === a.actor_id)
-                              ?.full_name || "Equipe"}{" "}
-                            ·{" "}
-                            {a.event_type === "assignment"
-                              ? "Atribuição"
-                              : statuses[a.new_status]}
-                          </p>
-                        </div>
-                        <time>{formatDate(a.created_at)}</time>
-                      </div>
-                    ))}
-                  </section>
                 </>
               ) : (
                 <>
@@ -868,7 +848,12 @@ export default function Workspace({
                           >
                             <option value="">Selecione</option>
                             {people
-                              .filter((p) => p.role === "attendant")
+                              .filter(
+                                (p) =>
+                                  p.role === "attendant" &&
+                                  p.is_active !== false &&
+                                  !p.deleted_at,
+                              )
                               .map((p) => (
                                 <option key={p.id} value={p.id}>
                                   {p.full_name}

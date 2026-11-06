@@ -32,6 +32,65 @@ async function setup(role) {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const userId = role === "admin" ? adminId : attendantId;
+  const managed = profiles.map((p) => ({
+    ...p,
+    auth_user_id: p.id,
+    username:
+      p.id === adminId ? "admin" : p.id === attendantId ? "atendente" : "outro",
+    is_active: true,
+    deleted_at: null,
+    created_at: now,
+  }));
+  await page.route("**/api/admin/users?**", async (route) => {
+    const method = route.request().method(),
+      url = new URL(route.request().url()),
+      body = route.request().postDataJSON() || {};
+    const reply = (data, status = 200) =>
+      route.fulfill({
+        status,
+        contentType: "application/json",
+        body: JSON.stringify(data),
+      });
+    if (role !== "admin")
+      return reply({ error: "Acesso restrito ao administrador." }, 403);
+    if (method === "GET") {
+      const rows = managed.filter((u) =>
+        url.searchParams.get("archived") === "true"
+          ? u.deleted_at
+          : !u.deleted_at,
+      );
+      return reply({ users: rows, total: rows.length });
+    }
+    if (method === "POST") {
+      const user = {
+        id: "00000000-0000-0000-0000-000000000004",
+        auth_user_id: "00000000-0000-0000-0000-000000000004",
+        username: body.username,
+        full_name: body.full_name,
+        role: body.role,
+        is_active: body.is_active,
+        deleted_at: null,
+        created_at: now,
+      };
+      managed.push(user);
+      return reply({ user });
+    }
+    const user = managed.find((u) => u.id === body.id);
+    if (method === "PATCH") {
+      Object.assign(user, {
+        username: body.username,
+        full_name: body.full_name,
+        role: body.role,
+        is_active: body.is_active,
+      });
+      return reply({ user });
+    }
+    user.deleted_at = now;
+    user.is_active = false;
+    user.auth_user_id = null;
+    return reply({ deleted: true, returned: 0 });
+  });
+
   const make = (id, name, assigned_to, status = "pending") => ({
     id,
     name,
@@ -433,13 +492,12 @@ async function setup(role) {
 }
 try {
   const { context, page, errors, leads } = await setup("admin");
-  await expect(page.locator(".instrument-card")).toHaveCount(4);
+  await expect(page.locator(".digital-panel")).toHaveCount(4);
+  await expect(page.locator(".digital-panel-value").first()).toHaveText("6");
   await expect(
-    page.locator(".instrument-card").first().locator(".sr-only"),
-  ).toContainText("Total importado: 6 leads");
-  await expect(
-    page.locator(".instrument-card").nth(1).locator(".instrument-footer"),
-  ).toContainText("33,3% da base");
+    page.getByRole("heading", { name: "Últimas atividades", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator(".instrument-dial")).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Visão geral." }),
   ).toBeVisible();
@@ -468,6 +526,7 @@ try {
   await page
     .getByRole("button", { name: "Estoque de leads", exact: true })
     .click();
+  await expect(page.locator(".digital-panel")).toHaveCount(0);
   await expect(page.locator(".lead-card h3").first()).toHaveText(
     "Novo contato",
   );
@@ -572,6 +631,80 @@ try {
   console.log(
     "Fila: seleção de vendedor, lotes/status, confirmação e retirada sem apagar vendas passaram.",
   );
+  await page.getByRole("button", { name: "Usuários", exact: true }).click();
+  await expect(page.locator(".digital-panel")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Criar usuário", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByLabel("Nome", { exact: true })
+    .fill("Novo Vendedor");
+  await page
+    .getByRole("dialog")
+    .getByLabel("Usuário", { exact: true })
+    .fill("vendedor_novo");
+  await page
+    .getByRole("dialog")
+    .getByLabel("Senha", { exact: true })
+    .fill("test-new-password");
+  await page
+    .getByRole("button", { name: "Salvar usuário", exact: true })
+    .click();
+  await expect(page.locator(".notice[role=status]")).toContainText(
+    "Usuário criado",
+  );
+  const userCard = page
+    .locator(".user-card")
+    .filter({ hasText: "Novo Vendedor" });
+  await userCard
+    .getByRole("button", { name: "Editar usuário", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByLabel("Nome", { exact: true })
+    .fill("Vendedor Editado");
+  await page
+    .getByRole("dialog")
+    .getByLabel("Usuário", { exact: true })
+    .fill("vendedor_editado");
+  await page
+    .getByRole("dialog")
+    .getByLabel("Nova senha (opcional)", { exact: true })
+    .fill("test-updated-password");
+  await page
+    .getByRole("button", { name: "Salvar usuário", exact: true })
+    .click();
+  await expect(page.locator(".notice[role=status]")).toContainText(
+    "Usuário atualizado",
+  );
+  await expect(
+    page
+      .locator(".user-card")
+      .filter({ hasText: "Admin de teste" })
+      .getByRole("button", { name: "Excluir acesso" }),
+  ).toBeDisabled();
+  page.once("dialog", (d) => d.accept());
+  await page
+    .locator(".user-card")
+    .filter({ hasText: "Vendedor Editado" })
+    .getByRole("button", { name: "Excluir acesso" })
+    .click();
+  await expect(page.locator(".notice[role=status]")).toContainText(
+    "Acesso excluído",
+  );
+  await expect(
+    page.locator(".user-card").filter({ hasText: "Vendedor Editado" }),
+  ).toHaveCount(0);
+  await page
+    .getByLabel("Mostrar usuários", { exact: true })
+    .selectOption("archived");
+  await expect(
+    page.locator(".user-card").filter({ hasText: "Vendedor Editado" }),
+  ).toHaveCount(1);
+  console.log(
+    "Usuários: criação, edição, redefinição de senha, exclusão com confirmação e preservação do histórico passaram.",
+  );
   await page.getByRole("button", { name: "Visão geral", exact: true }).click();
   for (const width of [1440, 820, 390]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -595,32 +728,20 @@ try {
     leads.filter((l) => l.status === "sold").length,
   ];
   for (let i = 0; i < 4; i++)
-    await expect(page.locator(".instrument-readout strong").nth(i)).toHaveText(
+    await expect(page.locator(".digital-panel-value").nth(i)).toHaveText(
       expectedReadouts[i].toLocaleString("pt-BR"),
     );
   await page.screenshot({ path: "/tmp/techvendas-admin.png", fullPage: true });
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  assert.equal(
-    await page
-      .locator(".dial-needle")
-      .first()
-      .evaluate((el) => getComputedStyle(el).transitionDuration),
-    "0s",
-  );
-  assert.equal(
-    await page
-      .locator(".instrument-footer i")
-      .first()
-      .evaluate((el) => getComputedStyle(el).animationName),
-    "none",
-  );
   console.log(
-    "Painéis digitais: quatro velocímetros, quantidades/percentuais reais e movimento reduzido passaram.",
+    "Painel: números reais estáticos na visão geral, sem velocímetros nem feed de atividades.",
   );
   assert.deepEqual(errors, []);
   await context.close();
   const attendant = await setup("attendant");
   const p = attendant.page;
+  await expect(
+    p.getByRole("button", { name: "Usuários", exact: true }),
+  ).toHaveCount(0);
   await expect(p.getByLabel("Vendedor", { exact: true })).toHaveCount(0);
   await expect(
     p.getByRole("button", { name: "Importar CSV", exact: true }),

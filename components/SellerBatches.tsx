@@ -138,7 +138,12 @@ export default function SellerBatches({
           >
             <option value="">Todos os vendedores</option>
             {people
-              .filter((p) => p.role === "attendant")
+              .filter(
+                (p) =>
+                  p.role === "attendant" &&
+                  p.is_active !== false &&
+                  !p.deleted_at,
+              )
               .map((p) => (
                 <option value={p.id} key={p.id}>
                   {p.full_name}

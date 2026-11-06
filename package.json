@@ -8,17 +8,20 @@
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test:rls": "node tests/rls.mjs",
-    "test": "npm run test:username && npm run test:csv && npm run test:rls && npm run test:workflows",
+    "test": "npm run test:username && npm run test:csv && npm run test:rls && npm run test:workflows && npm run test:user-api && npm run test:user-security",
     "test:csv": "node --experimental-strip-types tests/csv.mjs",
     "test:workflows": "node tests/workflows.mjs",
     "test:ui": "node tests/browser.mjs",
-    "test:username": "node --experimental-strip-types tests/username.mjs"
+    "test:username": "node --experimental-strip-types tests/username.mjs",
+    "test:user-api": "node --experimental-strip-types tests/user-api.mjs",
+    "test:user-security": "node tests/user-security.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.80.0",
     "next": "^16.0.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.15",

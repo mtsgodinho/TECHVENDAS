@@ -19,9 +19,14 @@ before(async () => {
   await db.exec(
     `create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema public,auth to anon,authenticated;grant execute on function auth.uid() to anon,authenticated;`,
   );
-  await db.exec(
-    readFileSync(new URL("../supabase/setup.sql", import.meta.url), "utf8"),
-  );
+  for (const name of [
+    "001_initial.sql",
+    "002_workflows.sql",
+    "003_seller_batches.sql",
+  ])
+    await db.exec(
+      readFileSync(new URL("../supabase/" + name, import.meta.url), "utf8"),
+    );
   await db.exec(
     `insert into auth.users values ('${admin}'),('${attendant}'),('${other}');insert into public.profiles(id,full_name,role) values ('${admin}','Admin','admin'),('${attendant}','Atendente','attendant'),('${other}','Outra','attendant');`,
   );

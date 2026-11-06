@@ -6,5 +6,5 @@ select
  to_regclass('public.lead_history') as historico;
 select routine_name from information_schema.routines
 where routine_schema='public'
-and routine_name in ('import_leads','release_leads','save_lead','transfer_lead','dashboard','seller_batches','recall_batch')
+and routine_name in ('import_leads','release_leads','save_lead','transfer_lead','dashboard','seller_batches','recall_batch','admin_save_user','admin_archive_user','is_active_user')
 order by routine_name;

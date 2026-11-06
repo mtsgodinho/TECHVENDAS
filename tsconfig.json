@@ -17,7 +17,8 @@
       }
     ],
     "allowJs": true,
-    "incremental": true
+    "incremental": true,
+    "allowImportingTsExtensions": true
   },
   "include": [
     "next-env.d.ts",

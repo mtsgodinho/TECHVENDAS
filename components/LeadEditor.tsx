@@ -264,7 +264,12 @@ export default function LeadEditor({
                 disabled={busy}
               >
                 {people
-                  .filter((p) => p.role === "attendant")
+                  .filter(
+                    (p) =>
+                      p.role === "attendant" &&
+                      p.is_active !== false &&
+                      !p.deleted_at,
+                  )
                   .map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.full_name}

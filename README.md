@@ -55,7 +55,7 @@ npm run build
 npm start
 ```
 
-`npm test` executa 7 testes de CSV, 11 verificações iniciais de RLS e 15 testes integrados de banco em PostgreSQL embarcado (PGlite). As migrações completas são executadas de verdade nesse banco em memória, com usuários/papéis de autenticação de teste. A suíte verifica duplicados, lotes, isolamento, acesso anônimo, conflitos de edição, agendamento, devolução, nova liberação, reatribuição e finalização.
+`npm test` executa 2 testes de usuário/login, 7 de CSV, 11 verificações iniciais de RLS, 15 testes dos fluxos do CRM, 8 testes da API de usuários com dependências simuladas e 8 testes de segurança/provisionamento em PostgreSQL embarcado (PGlite). As migrações completas são executadas de verdade nesse banco em memória, com usuários/papéis de autenticação de teste. A suíte verifica duplicados, lotes, isolamento, acesso anônimo, conflitos de edição, agendamento, devolução, nova liberação, reatribuição e finalização.
 
 Com um servidor iniciado em outro terminal:
 
@@ -90,7 +90,7 @@ A publicação do ambiente na nuvem e o deploy na Vercel são ações diferentes
 
 ## Usuários e senhas
 
-Você define e distribui as credenciais. Os nomes de usuário têm de 3 a 32 caracteres, começam com uma letra e aceitam letras sem acentos, números, ponto, hífen e sublinhado. Não diferenciam maiúsculas de minúsculas. O login converte o usuário para o identificador interno `usuario@techvendas.invalid`, mantendo sessões e RLS do Supabase. Esse endereço é técnico, não recebe mensagens e não precisa existir como caixa de e-mail. Não há recuperação de senha por e-mail: o administrador define ou redefine a senha no painel Authentication do Supabase. Nunca coloque senhas em SQL, Git ou nesta conversa.
+Você define e distribui as credenciais. Os nomes de usuário têm de 3 a 32 caracteres, começam com uma letra e aceitam letras sem acentos, números, ponto, hífen e sublinhado. Não diferenciam maiúsculas de minúsculas. O login converte o usuário para o identificador interno `usuario@techvendas.invalid`, mantendo sessões e RLS do Supabase. Esse endereço é técnico, não recebe mensagens e não precisa existir como caixa de e-mail. Não há recuperação de senha por e-mail: o administrador define ou redefine a senha pela aba Usuários do aplicativo. Nunca coloque senhas em SQL, Git ou nesta conversa.
 
 ## Gerenciar lotes dos vendedores
 
@@ -104,4 +104,16 @@ O filtro **Lote** da atendente lista somente lotes com atribuições ativas para
 
 ## Painéis digitais
 
-Os quatro indicadores principais usam velocímetros com escala de 0 a 100%, ponteiro e contador digital animados. O número central é a quantidade real de leads; a escala mostra a participação na base retornada pelo dashboard (não é uma meta de vendas). Sem leads, o marcador fica em zero. Os dados e as permissões seguem o mesmo fluxo do CRM. As animações são desativadas quando o dispositivo solicita movimento reduzido. Não exige migração SQL nem dependências adicionais.
+Os indicadores são painéis numéricos digitais estáticos, sem velocímetros, ponteiros ou contadores simulados. Aparecem somente na Visão geral do administrador e na fila principal do vendedor, sem ocupar as demais abas. O feed de Últimas atividades foi removido do dashboard; os históricos reais de cada contato continuam disponíveis. Os números vêm do Supabase, sem dados demonstrativos no aplicativo.
+
+## Administrar usuários pelo aplicativo
+
+1. No projeto já instalado, execute somente `supabase/004_user_management.sql` no SQL Editor. É uma migração aditiva e repetível. O instalador `setup.sql` continua exclusivo para projetos vazios.
+2. Na Vercel, configure **TECHVENDAS_SUPABASE_ADMIN_KEY** como **Secreto**, em Produção, usando uma **Secret key** do projeto Supabase. Não use prefixo NEXT_PUBLIC_, não salve o valor em Git e não compartilhe senhas ou chaves em chat. No ambiente na nuvem, há um requisito seguro para essa mesma chave, vinculado somente ao hostname do projeto.
+3. Publique a atualização. Entre como administrador e abra **Usuários**. Você pode criar acessos por usuário/senha, editar nome, usuário, perfil e situação, redefinir senhas e excluir acessos com confirmação.
+
+A API `/api/admin/users` valida a sessão com Supabase Auth e verifica o administrador ativo antes de usar a chave privada. O módulo de rota é protegido com `server-only`; a chave não chega ao frontend. A senha é enviada somente ao Supabase Auth e nunca é gravada em `profiles` ou devolvida pelas respostas do aplicativo. Novas senhas precisam ter de 8 a 128 caracteres.
+
+Não é permitido excluir/desativar o próprio administrador nem deixar o sistema sem administrador ativo. Para desativar um vendedor ou mudar seu perfil, retire seus lotes ativos primeiro. Excluir um vendedor devolve os contatos não finalizados ao estoque e remove suas credenciais; vendas, perdidos e históricos continuam vinculados à identificação preservada. O banco bloqueia sessões antigas de usuários desativados/excluídos. A lista **Acessos excluídos** mantém essa identificação e permite concluir uma exclusão que tenha falhado somente no serviço de autenticação. Os perfis existentes são migrados sem recriar os acessos.
+
+A integração administrativa de leitura com a chave do ambiente foi verificada (HTTP 200), sem alterar usuários reais. Os testes de criação/edição/exclusão usam banco em memória ou chamadas simuladas; o fluxo real completo depende da migração e da configuração da chave na Vercel.

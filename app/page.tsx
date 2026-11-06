@@ -66,7 +66,7 @@ export default function Home() {
         setProfile(data);
         setMessage(
           error
-            ? "Seu perfil ainda não foi provisionado. Solicite acesso ao administrador."
+            ? "Seu acesso não está disponível. Procure o administrador."
             : "",
         );
         setLoading(false);

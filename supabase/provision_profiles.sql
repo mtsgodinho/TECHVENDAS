@@ -17,8 +17,8 @@ begin
  if admin_id is null or attendant_id is null then
   raise exception 'Crie os dois usuários em Authentication antes de provisionar os perfis.';
  end if;
- insert into public.profiles(id,full_name,role) values
- (admin_id,'Administrador','admin'),(attendant_id,'Atendente','attendant')
- on conflict(id) do update set role=excluded.role;
+ insert into public.profiles(id,auth_user_id,username,full_name,role,is_active) values
+ (admin_id,admin_id,admin_username,'Administrador','admin',true),(attendant_id,attendant_id,attendant_username,'Atendente','attendant',true)
+ on conflict(id) do update set auth_user_id=excluded.auth_user_id,username=excluded.username,role=excluded.role,is_active=true,deleted_at=null;
 end;
 $$;

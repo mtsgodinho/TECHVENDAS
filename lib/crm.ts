@@ -2,6 +2,9 @@ export type Profile = {
   id: string;
   full_name: string;
   role: "admin" | "attendant";
+  username?: string | null;
+  is_active?: boolean;
+  deleted_at?: string | null;
 };
 export const statuses = {
   pending: "Pendente",
