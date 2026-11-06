@@ -121,3 +121,7 @@ A integração administrativa de leitura com a chave do ambiente foi verificada 
 ### Financeiro
 
 Em instalações existentes, execute somente `supabase/005_finance.sql` após a migração 004 e publique a versão atualizada. Ao concluir um contato como venda, o valor em reais é obrigatório. O painel principal do administrador apresenta faturamento acumulado e comissões por vendedor; o vendedor vê sua comissão gerada de R$ 20 por venda. São valores acumulados, sem baixa de pagamentos nesta versão. Vendas antigas sem valor ficam sinalizadas e fora dos totais até o administrador informar o valor. Correções não duplicam comissão; retirar o status de venda estorna faturamento e comissão do placar. Valores são gravados junto ao status na mesma transação e protegidos por permissões no banco. `npm run test:finance` verifica valores inválidos, isolamento entre vendedores, correção, cancelamento e duplicação.
+
+### Meu perfil
+
+Execute `supabase/006_self_profile.sql` em instalações existentes, após 005. A aba Meu perfil permite alterar o próprio nome e foto e trocar a senha no Supabase Auth após conferir a senha atual. Não permite alterar login, função ou conta alheia. Fotos JPG/PNG/WebP de até 5 MB são recortadas ao centro e reduzidas no navegador a uma miniatura JPEG 256×256, limitada a 65 KB no banco; nenhuma imagem externa ou SVG é aceita. A foto pode ser removida. Nome e foto são salvos juntos; senha tem formulário separado. Use `npm run test:self-profile` para verificar isolamento e validação. Nenhuma chave administrativa é necessária para esse fluxo.

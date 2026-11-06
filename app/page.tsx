@@ -59,7 +59,7 @@ export default function Home() {
       }
       const { data, error } = await client!
         .from("profiles")
-        .select("id,full_name,role")
+        .select("*")
         .eq("id", id)
         .single();
       if (active) {

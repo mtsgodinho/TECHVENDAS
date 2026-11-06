@@ -387,6 +387,10 @@ async function setup(role) {
       }
       return response({ recalled: rows.length });
     }
+    if (path === "/rest/v1/rpc/update_my_profile") {
+      requests.push({ name: "self-profile", body });
+      return response(null);
+    }
     if (path === "/rest/v1/rpc/finance_summary") {
       return response({
         revenue: 300,
@@ -780,6 +784,44 @@ try {
   console.log(
     "Atendente: lote retirado e lote de outro vendedor não aparecem no filtro.",
   );
+  await p.getByRole("button", { name: "Meu perfil", exact: true }).click();
+  await p.getByLabel("Nome", { exact: true }).fill("Bianca atualizada");
+  const photoFixture = await p.evaluate(() => {
+    const canvas = document.createElement("canvas"); canvas.width=32; canvas.height=32;
+    const ctx=canvas.getContext("2d");ctx.fillStyle="#00cfee";ctx.fillRect(0,0,32,32);
+    return canvas.toDataURL("image/png").split(",")[1];
+  });
+  await p
+    .getByLabel("Foto de perfil")
+    .setInputFiles({
+      name: "foto.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        photoFixture,
+        "base64",
+      ),
+    });
+  await expect(p.getByAltText("Prévia da foto de perfil")).toBeVisible();
+  await p.getByRole("button", { name: "Salvar perfil", exact: true }).click();
+  await expect(p.getByRole("status")).toContainText("Perfil atualizado");
+  assert.equal(
+    requests.findLast((r) => r.name === "self-profile").body.p_full_name,
+    "Bianca atualizada",
+  );
+  assert.match(
+    requests.findLast((r) => r.name === "self-profile").body.p_avatar_url,
+    /^data:image\/jpeg;base64,/,
+  );
+  await p.getByLabel("Senha atual", { exact: true }).fill("senha-atual");
+  await p.getByLabel("Nova senha", { exact: true }).fill("senha-nova-123");
+  await p
+    .getByLabel("Confirmar nova senha", { exact: true })
+    .fill("senha-diferente");
+  await p.getByRole("button", { name: "Alterar senha", exact: true }).click();
+  await expect(p.getByRole("status")).toContainText("repita a mesma senha");
+  await p
+    .getByRole("button", { name: "Fila de atendimento", exact: true })
+    .click();
   await p.getByRole("button", { name: "Abrir contato" }).first().click();
   await p
     .getByRole("dialog")

@@ -1,4 +1,5 @@
 export type Profile = {
+  avatar_url?: string | null;
   id: string;
   full_name: string;
   role: "admin" | "attendant";

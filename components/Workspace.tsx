@@ -18,6 +18,7 @@ import Brand from "./Brand";
 import SellerBatches from "./SellerBatches";
 import DigitalPanel from "./DigitalPanel";
 import FinancePanel from "./FinancePanel";
+import MyProfile from "./MyProfile";
 import UserManagement from "./UserManagement";
 type View =
   | "dashboard"
@@ -27,7 +28,8 @@ type View =
   | "followup"
   | "finished"
   | "import"
-  | "users";
+  | "users"
+  | "profile";
 const viewTitles: Record<View, string> = {
   dashboard: "Visão geral",
   stock: "Estoque de leads",
@@ -37,6 +39,7 @@ const viewTitles: Record<View, string> = {
   finished: "Finalizados",
   import: "Importar CSV",
   users: "Usuários",
+  profile: "Meu perfil",
 };
 const initialMetrics: Metrics = {
   total: 0,
@@ -60,6 +63,7 @@ function Glyph({ kind }: { kind: View | "refresh" }) {
     import: "M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5",
     users:
       "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m9-3v6m-3-3h6",
+    profile: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M4 22v-3a8 8 0 0 1 16 0v3",
     refresh: "M3 10a9 9 0 1 1 2 8M3 3v7h7",
   };
   return (
@@ -87,6 +91,7 @@ export default function Workspace({
   onLogout: () => void;
   loggingOut: boolean;
 }) {
+  const [ownProfile, setOwnProfile] = useState(profile);
   const admin = profile.role === "admin";
   const [view, setView] = useState<View>(admin ? "dashboard" : "leads"),
     [menu, setMenu] = useState(false),
@@ -181,7 +186,7 @@ export default function Workspace({
   useEffect(() => {
     const client = supabase;
     if (!client) return;
-    if (view === "users") {
+    if (view === "users" || view === "profile") {
       setLoading(false);
       return;
     }
@@ -410,8 +415,9 @@ export default function Workspace({
         "finished",
         "import",
         "users",
+        "profile",
       ]
-    : ["leads", "followup", "finished"];
+    : ["leads", "followup", "finished", "profile"];
   const cards = admin
     ? [
         ["Total importado", metrics.total],
@@ -456,7 +462,16 @@ export default function Workspace({
         <div className="side-bottom">
           <span className="dot" /> Ambiente seguro
           <p className="muted">
-            {profile.full_name}
+            {ownProfile.avatar_url && (
+              <img
+                className="profile-avatar"
+                src={ownProfile.avatar_url}
+                alt="Sua foto"
+                width={36}
+                height={36}
+              />
+            )}
+            {ownProfile.full_name}
             <br />
             {admin ? "Administrador" : "Atendente"}
           </p>
@@ -518,7 +533,8 @@ export default function Workspace({
               {admin &&
                 view !== "import" &&
                 view !== "dashboard" &&
-                view !== "users" && (
+                view !== "users" &&
+                view !== "profile" && (
                   <button
                     className="secondary"
                     onClick={download}
@@ -545,7 +561,9 @@ export default function Workspace({
               </button>
             </p>
           )}
-          {view === "users" && admin ? (
+          {view === "profile" ? (
+            <MyProfile profile={ownProfile} onSaved={setOwnProfile} />
+          ) : view === "users" && admin ? (
             <UserManagement actor={profile.id} onChanged={reload} />
           ) : view === "import" ? (
             <ImportCsv
